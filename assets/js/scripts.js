@@ -539,12 +539,6 @@
   svg.setAttribute('width',  gW);
   svg.setAttribute('height', gH);
   svg.style.cssText = 'position:absolute;top:0;left:0;pointer-events:none;overflow:visible;';
-  var defs = document.createElementNS(ns, 'defs');
-  defs.innerHTML =
-    '<marker id="ah" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto">' +
-    '<path d="M0,0 L0,6 L9,3 z" fill="currentColor" opacity="0.45"/>' +
-    '</marker>';
-  svg.appendChild(defs);
   canvas.insertBefore(svg, canvas.firstChild);
   VP.appendChild(canvas);
 
@@ -746,10 +740,9 @@
     }
 
     var path = document.createElementNS(ns, 'path');
-    path.setAttribute('d',          d);
-    path.setAttribute('fill',       'none');
-    path.setAttribute('marker-end', 'url(#ah)');
-    path.setAttribute('class',      'edge-link');
+    path.setAttribute('d',     d);
+    path.setAttribute('fill',  'none');
+    path.setAttribute('class', 'edge-link');
     svg.appendChild(path);
     edgePaths.push({ from: lk.from, to: lk.to, el: path });
   });
