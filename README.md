@@ -2,7 +2,7 @@
 
 ![](./argus.png)
 
-**argus** is a notetaking app I use to keep track of highly complex systems.
+**argus** is a notetaking app to keep track of highly complex systems (DAG).
 
 ## License
 
