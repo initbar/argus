@@ -1,4 +1,10 @@
+# Markdown
+.content/
+
+# Mac
+.DS_Store
+
+# Hugo
+.hugo_build.lock
 public/
 resources/
-.hugo_build.lock
-.DS_Store
