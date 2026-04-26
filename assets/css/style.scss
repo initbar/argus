@@ -66,7 +66,7 @@
   --red: #f44336;
   --font: 'Caveat', cursive;
   --font-mono: 'JetBrains Mono', 'Fira Code', 'SF Mono', Consolas, monospace;
-  --text-xs: clamp(0.75rem, 1.4vw, 0.8rem);
+  --text-xs: clamp(0.8125rem, 1.4vw, 0.875rem);
   --text-sm: clamp(0.85rem, 1.8vw, 0.9375rem);
   --text-base: clamp(0.9375rem, 2vw, 1.0625rem);
   --text-lg: clamp(1.15rem, 2.5vw, 1.375rem);
@@ -211,6 +211,26 @@ body {
 }
 
 .graph-viewport.has-hover svg .group-label.is-highlighted {
+  opacity: 1;
+}
+
+.graph-viewport svg .edge-label {
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  pointer-events: none;
+
+  rect {
+    fill: #000;
+  }
+
+  text {
+    font-size: 15px;
+    letter-spacing: 0.04em;
+    fill: #fff;
+  }
+}
+
+.graph-viewport.has-hover svg .edge-label.is-highlighted {
   opacity: 1;
 }
 

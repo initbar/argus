@@ -1,7 +1,7 @@
 ---
 title: "Carrots"
 description: "Carrots are good for your eyes"
-links: [
-    "apple"
-]
+links:
+    - to: "apple"
+      label: "GET apples"
 ---

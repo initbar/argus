@@ -542,6 +542,36 @@
   canvas.insertBefore(svg, canvas.firstChild);
   VP.appendChild(canvas);
 
+  // ── Label overlay SVG (appended after node elements so it renders above them) ──
+  var svgTop = document.createElementNS(ns, 'svg');
+  svgTop.setAttribute('aria-hidden', 'true');
+  svgTop.setAttribute('width',  gW);
+  svgTop.setAttribute('height', gH);
+  svgTop.style.cssText = 'position:absolute;top:0;left:0;pointer-events:none;overflow:visible;';
+  canvas.appendChild(svgTop);
+
+  // ── Word-wrap helper: fills textEl with <tspan> lines, returns line count ──
+  function wrapText(textEl, str, maxW) {
+    var words = str.split(/\s+/);
+    var lines = [], cur = '';
+    words.forEach(function (w) {
+      var trial = cur ? cur + ' ' + w : w;
+      textEl.textContent = trial;
+      if (cur && textEl.getBBox().width > maxW) { lines.push(cur); cur = w; }
+      else cur = trial;
+    });
+    if (cur) lines.push(cur);
+    textEl.textContent = '';
+    lines.forEach(function (l, i) {
+      var ts = document.createElementNS(ns, 'tspan');
+      ts.setAttribute('x', '0');
+      ts.setAttribute('dy', i ? '1.3em' : '0');
+      ts.textContent = l;
+      textEl.appendChild(ts);
+    });
+    return lines.length;
+  }
+
   // ── Geometry helpers ──────────────────────────────────────────────────────
   function convexHull(pts) {
     if (pts.length <= 2) return pts.slice();
@@ -675,7 +705,7 @@
     lbl.setAttribute('x',              (sumX / hull.length).toFixed(1));
     lbl.setAttribute('y',              (topPt[1] - pad - 6).toFixed(1));
     lbl.setAttribute('text-anchor',    'middle');
-    lbl.setAttribute('font-size',      nested ? '8' : '9');
+    lbl.setAttribute('font-size',      nested ? '11' : '12');
     lbl.setAttribute('letter-spacing', '1');
     lbl.setAttribute('fill',           'currentColor');
     lbl.setAttribute('class', 'group-label ' + (nested ? 'group-nested' : 'group-outer'));
@@ -693,6 +723,7 @@
 
     var ax = a.cx, ay = a.cy, bx = b.cx, by = b.cy;
     var d;
+    var midX, midY;
 
     var intra = a.section && b.section && a.section === b.section;
 
@@ -704,6 +735,9 @@
           ' C' + mx.toFixed(1) + ',' + sy.toFixed(1) +
           ' '  + mx.toFixed(1) + ',' + ty.toFixed(1) +
           ' '  + tx.toFixed(1) + ',' + ty.toFixed(1);
+      // cubic bezier midpoint at t=0.5: 0.125*P0 + 0.375*P1 + 0.375*P2 + 0.125*P3
+      midX = 0.125 * sx + 0.375 * mx + 0.375 * mx + 0.125 * tx;
+      midY = 0.125 * sy + 0.375 * sy + 0.375 * ty + 0.125 * ty;
     } else {
       var dx = bx - ax, dy = by - ay;
       var len = Math.sqrt(dx * dx + dy * dy) || 1;
@@ -737,6 +771,9 @@
       d = 'M'  + sp[0].toFixed(1) + ',' + sp[1].toFixed(1) +
           ' Q' + cpX.toFixed(1)   + ',' + cpY.toFixed(1) +
           ' '  + tp[0].toFixed(1) + ',' + tp[1].toFixed(1);
+      // quadratic bezier midpoint at t=0.5: 0.25*P0 + 0.5*CP + 0.25*P2
+      midX = 0.25 * sp[0] + 0.5 * cpX + 0.25 * tp[0];
+      midY = 0.25 * sp[1] + 0.5 * cpY + 0.25 * tp[1];
     }
 
     var path = document.createElementNS(ns, 'path');
@@ -744,7 +781,37 @@
     path.setAttribute('fill',  'none');
     path.setAttribute('class', 'edge-link');
     svg.appendChild(path);
-    edgePaths.push({ from: lk.from, to: lk.to, el: path });
+
+    var labelEl = null;
+    if (lk.label) {
+      var labelG = document.createElementNS(ns, 'g');
+      labelG.setAttribute('class',     'edge-label');
+      labelG.setAttribute('transform', 'translate(' + midX.toFixed(1) + ',' + midY.toFixed(1) + ')');
+
+      var labelText = document.createElementNS(ns, 'text');
+      labelText.setAttribute('text-anchor', 'middle');
+      labelG.appendChild(labelText);
+      svgTop.appendChild(labelG);
+
+      wrapText(labelText, lk.label, 180);
+
+      // shift text so its visual centre sits at the group origin
+      var tbb = labelText.getBBox();
+      labelText.setAttribute('transform', 'translate(0,' + (-tbb.y - tbb.height / 2).toFixed(1) + ')');
+
+      var bb = labelG.getBBox();
+      var lpx = 10, lpy = 6;
+      var labelRect = document.createElementNS(ns, 'rect');
+      labelRect.setAttribute('x',      (bb.x - lpx).toFixed(1));
+      labelRect.setAttribute('y',      (bb.y - lpy).toFixed(1));
+      labelRect.setAttribute('width',  (bb.width  + lpx * 2).toFixed(1));
+      labelRect.setAttribute('height', (bb.height + lpy * 2).toFixed(1));
+      labelG.insertBefore(labelRect, labelText);
+
+      labelEl = labelG;
+    }
+
+    edgePaths.push({ from: lk.from, to: lk.to, el: path, labelEl: labelEl });
   });
 
   // ── Hover highlighting ────────────────────────────────────────────────────
@@ -764,7 +831,9 @@
         n.el.classList.toggle('is-highlighted', n.id === hovN.id || !!neighbors[n.id]);
       });
       edgePaths.forEach(function (ep) {
-        ep.el.classList.toggle('is-highlighted', ep.from === hovN.id || ep.to === hovN.id);
+        var hit = ep.from === hovN.id || ep.to === hovN.id;
+        ep.el.classList.toggle('is-highlighted', hit);
+        if (ep.labelEl) ep.labelEl.classList.toggle('is-highlighted', hit);
       });
 
       var connNodeIds = {};
@@ -797,7 +866,10 @@
     hovN.el.addEventListener('mouseleave', function () {
       VP.classList.remove('has-hover');
       nodes.forEach(function (n) { n.el.classList.remove('is-highlighted'); });
-      edgePaths.forEach(function (ep) { ep.el.classList.remove('is-highlighted'); });
+      edgePaths.forEach(function (ep) {
+        ep.el.classList.remove('is-highlighted');
+        if (ep.labelEl) ep.labelEl.classList.remove('is-highlighted');
+      });
       allGroupKeys.forEach(function (key) {
         var ge = groupElems[key];
         if (!ge) return;

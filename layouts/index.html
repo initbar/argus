@@ -30,12 +30,16 @@
   </div>
 </div>
 
-{{/* Collect link data */}}
+{{/* Collect link data — each entry supports a plain string ("id") or a map ({to: "id", label: "text"}) */}}
 {{ $linkData := slice }}
 {{ range .Site.RegularPages }}
   {{ $page := . }}
   {{ range $page.Params.links }}
-    {{ $linkData = $linkData | append (dict "from" $page.File.ContentBaseName "to" .) }}
+    {{ if reflect.IsMap . }}
+      {{ $linkData = $linkData | append (dict "from" $page.File.ContentBaseName "to" .to "label" (.label | default "")) }}
+    {{ else }}
+      {{ $linkData = $linkData | append (dict "from" $page.File.ContentBaseName "to" . "label" "") }}
+    {{ end }}
   {{ end }}
 {{ end }}
 
