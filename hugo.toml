@@ -1,0 +1,14 @@
+baseURL = "http://localhost:4000/"
+
+title = "Argus"
+languageCode = "en-us"
+
+[markup.goldmark.renderer]
+  unsafe = true
+
+[markup.highlight]
+  style = "github"
+  noClasses = true
+
+[params]
+  tagline = "A Notetaking App"

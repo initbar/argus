@@ -1,0 +1,22 @@
+{{ define "main" }}
+<div class="note-wrapper">
+  <nav class="back-nav">
+    <a href="/" class="back-link">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+      All notes
+    </a>
+  </nav>
+  <article class="note">
+    <header class="note-header">
+      <h1 class="note-title">{{ .Title }}</h1>
+    </header>
+    <div class="note-content">
+      <ul>
+        {{ range .Pages }}
+        <li><a href="{{ .RelPermalink }}">{{ .Title }}</a></li>
+        {{ end }}
+      </ul>
+    </div>
+  </article>
+</div>
+{{ end }}

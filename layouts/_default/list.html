@@ -1,0 +1,31 @@
+{{ define "main" }}
+<div class="home-wrapper">
+  <header class="site-header">
+    <div class="site-header-inner">
+      <a href="/" class="back-link" style="display:inline-flex;align-items:center;gap:.4rem;font-size:var(--text-sm);color:var(--muted);text-decoration:none;margin-bottom:1.25rem;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+        All notes
+      </a>
+      <h1 class="site-title">{{ .Title }}</h1>
+    </div>
+  </header>
+  <main class="home-main">
+    {{ $pages := .Pages.ByParam "name" }}
+    {{ if $pages }}
+    <table class="notes-table">
+      <thead>
+        <tr><th>Name</th><th>Title</th></tr>
+      </thead>
+      <tbody>
+        {{ range $i, $page := $pages }}
+        <tr style="animation-delay: {{ mul $i 50 }}ms" onclick="location.href='{{ $page.RelPermalink }}'" role="link" tabindex="0" onkeydown="if(event.key==='Enter')location.href='{{ $page.RelPermalink }}'">
+          <td class="col-name">{{ with $page.Params.name }}{{ . }}{{ else }}{{ $page.Section | humanize | title }}{{ end }}</td>
+          <td class="col-title"><span class="title-text">{{ $page.Title }}</span><span class="title-arrow">→</span></td>
+        </tr>
+        {{ end }}
+      </tbody>
+    </table>
+    {{ end }}
+  </main>
+</div>
+{{ end }}
