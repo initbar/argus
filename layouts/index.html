@@ -13,11 +13,13 @@
     {{ $pages := sort .Site.RegularPages "Title" "asc" }}
     {{ if $pages }}
     {{ range $pages }}
+    {{ $dir := strings.TrimSuffix "/" .File.Dir }}
+    {{ $nodeId := cond (eq $dir "") .File.ContentBaseName (printf "%s/%s" $dir .File.ContentBaseName) }}
     <a
-      id="node-{{ .File.ContentBaseName }}"
+      id="node-{{ $nodeId }}"
       class="graph-node"
       href="{{ .RelPermalink }}"
-      data-path="{{ strings.TrimSuffix "/" .File.Dir }}"
+      data-path="{{ $dir }}"
     >
       {{ if .File.Dir }}<span class="node-section">{{ replace (path.Base .File.Dir) "-" " " }}</span>{{ end }}
       <span class="node-title">{{ .Title }}</span>
@@ -34,11 +36,13 @@
 {{ $linkData := slice }}
 {{ range .Site.RegularPages }}
   {{ $page := . }}
+  {{ $dir := strings.TrimSuffix "/" $page.File.Dir }}
+  {{ $from := cond (eq $dir "") $page.File.ContentBaseName (printf "%s/%s" $dir $page.File.ContentBaseName) }}
   {{ range $page.Params.links }}
     {{ if reflect.IsMap . }}
-      {{ $linkData = $linkData | append (dict "from" $page.File.ContentBaseName "to" .to "label" (.label | default "")) }}
+      {{ $linkData = $linkData | append (dict "from" $from "to" .to "label" (.label | default "")) }}
     {{ else }}
-      {{ $linkData = $linkData | append (dict "from" $page.File.ContentBaseName "to" . "label" "") }}
+      {{ $linkData = $linkData | append (dict "from" $from "to" . "label" "") }}
     {{ end }}
   {{ end }}
 {{ end }}
