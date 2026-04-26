@@ -1,5 +1,5 @@
 ---
 title: "Potassium"
-description: "Nature's energy bar"
+description: "K"
 links: []
 ---
