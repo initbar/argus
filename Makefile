@@ -1,7 +1,7 @@
 .PHONY: build run clean
 
 build:
-	@hugo build
+	@hugo --minify
 
 run:
 	@hugo server --port 4000 --bind 127.0.0.1
