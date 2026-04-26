@@ -693,7 +693,7 @@
     var boundary = document.createElementNS(ns, 'path');
     boundary.setAttribute('d',                d);
     boundary.setAttribute('fill',             'none');
-    boundary.setAttribute('stroke-width',     '1');
+    boundary.setAttribute('stroke-width',     '1.5');
     boundary.setAttribute('stroke-dasharray', '5 4');
     boundary.setAttribute('class', 'group-boundary ' + (nested ? 'group-nested' : 'group-outer'));
     svg.appendChild(boundary);
