@@ -899,4 +899,14 @@
 
   applyFit();
   VP.classList.add('is-ready');
+
+  // ── Labels toggle ─────────────────────────────────────────────────────────
+  var labelsBtn = document.getElementById('labels-toggle');
+  if (labelsBtn) {
+    labelsBtn.addEventListener('click', function () {
+      var on = VP.classList.toggle('labels-enabled');
+      labelsBtn.classList.toggle('is-active', on);
+      labelsBtn.setAttribute('aria-pressed', String(on));
+    });
+  }
 }());
