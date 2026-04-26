@@ -143,35 +143,25 @@ body {
   justify-content: center;
   padding: 0.7rem 1.1rem;
   max-width: 240px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--text);
   border-radius: var(--radius);
   background: var(--bg);
   text-decoration: none;
   color: var(--text);
   transition: border-color 0.15s ease, opacity 0.15s ease;
   cursor: pointer;
-
-  &:hover { border-color: var(--text); }
 }
 
 // Group boundary and label defaults (replaces SVG presentation attributes)
 .graph-viewport svg .group-boundary {
   stroke: currentColor;
-  opacity: 0.2;
+  opacity: 1;
   transition: opacity 0.15s ease, stroke 0.15s ease;
-}
-
-.graph-viewport svg .group-boundary.group-outer {
-  opacity: 0.13;
 }
 
 .graph-viewport svg .group-label {
   opacity: 1;
   transition: opacity 0.15s ease;
-}
-
-.graph-viewport svg .group-label.group-outer {
-  opacity: 0.3;
 }
 
 // Hover highlighting
