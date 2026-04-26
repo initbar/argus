@@ -29,8 +29,7 @@
       href="{{ .RelPermalink }}"
       data-path="{{ $dir }}"
     >
-      {{ if .File.Dir }}<span class="node-section">{{ replace (path.Base .File.Dir) "-" " " }}</span>{{ end }}
-      <span class="node-title">{{ .Title }}</span>
+<span class="node-title">{{ .Title }}</span>
       <span class="node-description">{{ .Description }}</span>
     </a>
     {{ end }}
