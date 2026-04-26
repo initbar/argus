@@ -1,3 +1,5 @@
+[![](https://github.com/initbar/argus/actions/workflows/build.yml/badge.svg)](https://github.com/initbar/argus/actions/workflows/build.yml)
+
 # argus
 
 ![](./argus.png)
