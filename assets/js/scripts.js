@@ -271,44 +271,27 @@
   }
 
   // ── Group separation ──────────────────────────────────────────────────────
-  // subgroupBBox: bbox of a nested group == its drawn border (GROUP_PADDING outside nodes)
-  function subgroupBBox(key) {
-    var sn  = groupMap[key];
-    var bx1 =  Infinity, by1 =  Infinity;
-    var bx2 = -Infinity, by2 = -Infinity;
-    sn.forEach(function (n) {
-      bx1 = Math.min(bx1, n.x - n.w / 2 - GROUP_PADDING);
-      by1 = Math.min(by1, n.y - n.h / 2 - GROUP_PADDING);
-      bx2 = Math.max(bx2, n.x + n.w / 2 + GROUP_PADDING);
-      by2 = Math.max(by2, n.y + n.h / 2 + GROUP_PADDING);
+  // Returns the drawn bbox of any group at any depth using layout coords (n.x/n.y).
+  // Recurses into direct child groups so each nesting level adds GROUP_PADDING
+  // around its children's already-drawn borders.
+  function groupLayoutBBox(key) {
+    var directChildKeys = allGroupKeys.filter(function (k) {
+      return k.substring(0, k.lastIndexOf('/')) === key;
     });
-    return [bx1, by1, bx2, by2];
-  }
-
-  // groupBBox: bbox of an outer group == its drawn border (GROUP_PADDING outside child groups/nodes)
-  function groupBBox(sec) {
-    var sn          = sectionMap[sec];
-    var childSgKeys = nestedKeys.filter(function (k) {
-      return k.substring(0, k.lastIndexOf('/')) === sec;
+    var inChild = {};
+    directChildKeys.forEach(function (ck) {
+      groupMap[ck].forEach(function (n) { inChild[n.id] = true; });
     });
-    var inSg = {};
-    childSgKeys.forEach(function (ck) {
-      groupMap[ck].forEach(function (n) { inSg[n.id] = true; });
+    var bx1 = Infinity, by1 = Infinity, bx2 = -Infinity, by2 = -Infinity;
+    directChildKeys.forEach(function (ck) {
+      var cb = groupLayoutBBox(ck);
+      bx1 = Math.min(bx1, cb[0] - GROUP_PADDING);
+      by1 = Math.min(by1, cb[1] - GROUP_PADDING);
+      bx2 = Math.max(bx2, cb[2] + GROUP_PADDING);
+      by2 = Math.max(by2, cb[3] + GROUP_PADDING);
     });
-
-    var bx1 =  Infinity, by1 =  Infinity;
-    var bx2 = -Infinity, by2 = -Infinity;
-
-    childSgKeys.forEach(function (ck) {
-      var sb = subgroupBBox(ck);
-      bx1 = Math.min(bx1, sb[0] - GROUP_PADDING);
-      by1 = Math.min(by1, sb[1] - GROUP_PADDING);
-      bx2 = Math.max(bx2, sb[2] + GROUP_PADDING);
-      by2 = Math.max(by2, sb[3] + GROUP_PADDING);
-    });
-
-    sn.forEach(function (n) {
-      if (inSg[n.id]) return;
+    groupMap[key].forEach(function (n) {
+      if (inChild[n.id]) return;
       bx1 = Math.min(bx1, n.x - n.w / 2 - GROUP_PADDING);
       by1 = Math.min(by1, n.y - n.h / 2 - GROUP_PADDING);
       bx2 = Math.max(bx2, n.x + n.w / 2 + GROUP_PADDING);
@@ -321,8 +304,8 @@
     var anyGrp = false;
     for (var gsi2 = 0; gsi2 < sections.length; gsi2++) {
       for (var gsj2 = gsi2 + 1; gsj2 < sections.length; gsj2++) {
-        var bi = groupBBox(sections[gsi2]);
-        var bj = groupBBox(sections[gsj2]);
+        var bi = groupLayoutBBox(sections[gsi2]);
+        var bj = groupLayoutBBox(sections[gsj2]);
         var gox = Math.min(bi[2], bj[2]) - Math.max(bi[0], bj[0]) + GROUP_MARGIN;
         var goy = Math.min(bi[3], bj[3]) - Math.max(bi[1], bj[1]) + GROUP_MARGIN;
         if (gox > 0 && goy > 0) {
@@ -380,7 +363,7 @@
           var pi = ki.substring(0, ki.lastIndexOf('/'));
           var pj = kj.substring(0, kj.lastIndexOf('/'));
           if (pi !== pj) continue;
-          var bi = subgroupBBox(ki), bj = subgroupBBox(kj);
+          var bi = groupLayoutBBox(ki), bj = groupLayoutBBox(kj);
           var sox = Math.min(bi[2], bj[2]) - Math.max(bi[0], bj[0]) + GROUP_MARGIN;
           var soy = Math.min(bi[3], bj[3]) - Math.max(bi[1], bj[1]) + GROUP_MARGIN;
           if (sox > 0 && soy > 0) {
@@ -410,7 +393,7 @@
         var nmembers = groupMap[nkey];
         var nmSet    = {};
         nmembers.forEach(function (n) { nmSet[n.id] = true; });
-        var nb   = subgroupBBox(nkey);
+        var nb   = groupLayoutBBox(nkey);
         var nbCx = (nb[0] + nb[2]) / 2, nbCy = (nb[1] + nb[3]) / 2;
         for (var nni = 0; nni < N; nni++) {
           var nn = nodes[nni];
@@ -458,8 +441,8 @@
     var anyGrp2 = false;
     for (var gsi3 = 0; gsi3 < sections.length; gsi3++) {
       for (var gsj3 = gsi3 + 1; gsj3 < sections.length; gsj3++) {
-        var bi2 = groupBBox(sections[gsi3]);
-        var bj2 = groupBBox(sections[gsj3]);
+        var bi2 = groupLayoutBBox(sections[gsi3]);
+        var bj2 = groupLayoutBBox(sections[gsj3]);
         var gox2 = Math.min(bi2[2], bj2[2]) - Math.max(bi2[0], bj2[0]) + GROUP_MARGIN;
         var goy2 = Math.min(bi2[3], bj2[3]) - Math.max(bi2[1], bj2[1]) + GROUP_MARGIN;
         if (gox2 > 0 && goy2 > 0) {
