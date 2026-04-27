@@ -162,6 +162,7 @@ body {
 
 .graph-viewport svg .group-label {
   opacity: 1;
+  font-weight: 700;
   transition: opacity 0.15s ease;
 }
 
@@ -173,7 +174,7 @@ body {
 .graph-viewport svg .edge-link {
   stroke: currentColor;
   stroke-width: 1.5;
-  opacity: 0.05;
+  opacity: 0.025;
   transition: opacity 0.15s ease, stroke 0.15s ease;
 }
 
