@@ -3,7 +3,7 @@ title: Apple
 description: An apple a day keeps the doctors away
 links:
     - to: [[group-b/potassium, group-c/carrot, group-c/group-d/potato]]
-      label: this is a really long string, and should probably wrap.
+      label: apple
       type: arrow
 ---
 
