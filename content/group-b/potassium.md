@@ -1,4 +1,4 @@
 ---
-title: "Potassium"
-description: "K"
+title: Potassium
+description: K
 ---
