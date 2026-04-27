@@ -10,7 +10,7 @@
   var HULL_PAD        = 48;
   var GROUP_PADDING   = 24;  // min gap: a group's inner border → its children (nodes or child groups)
   var GROUP_MARGIN    = 24;  // min gap: outer border of one sibling group → outer border of another
-  var SECTION_MARGIN  = 100; // min gap: outer border of one top-level section → another
+  var SECTION_MARGIN  = GROUP_MARGIN; // same spacing as sub-groups; balanced without forced vacuum
   var PAD             = 90;
 
   // ── Build data structures ─────────────────────────────────────────────────
@@ -227,15 +227,37 @@
       return { columns: columns, cws: cws, rhs: rhs, gc: gc, gr: gr, tw: tw, th: th };
     });
 
-    var totalW = grids.reduce(function (s, g) { return s + g.tw; }, 0) +
-                 Math.max(0, colKeys.length - 1) * SECT_COL_GAP;
+    // Arrange sub-groups in a balanced 2-D grid (not just a horizontal row)
+    var numSgCols = Math.max(1, Math.ceil(Math.sqrt(grids.length)));
+    var numSgRows = Math.ceil(grids.length / numSgCols);
 
-    var startX = centX - totalW / 2;
-    grids.forEach(function (g) {
-      var startY = centY - g.th / 2;
-      var colX   = startX;
+    var sgColWidths = [], sgRowHeights = [];
+    for (var sgc = 0; sgc < numSgCols; sgc++) sgColWidths.push(0);
+    for (var sgr = 0; sgr < numSgRows; sgr++) sgRowHeights.push(0);
+    grids.forEach(function (g, gi) {
+      var row = Math.floor(gi / numSgCols), col = gi % numSgCols;
+      sgColWidths[col]  = Math.max(sgColWidths[col],  g.tw);
+      sgRowHeights[row] = Math.max(sgRowHeights[row], g.th);
+    });
+
+    var sgColStarts = [0], sgRowStarts = [0];
+    for (var sgci = 1; sgci < numSgCols; sgci++) {
+      sgColStarts.push(sgColStarts[sgci - 1] + sgColWidths[sgci - 1] + SECT_COL_GAP);
+    }
+    for (var sgri = 1; sgri < numSgRows; sgri++) {
+      sgRowStarts.push(sgRowStarts[sgri - 1] + sgRowHeights[sgri - 1] + SECT_COL_GAP);
+    }
+
+    var totalSgW = sgColStarts[numSgCols - 1] + sgColWidths[numSgCols - 1];
+    var totalSgH = sgRowStarts[numSgRows - 1] + sgRowHeights[numSgRows - 1];
+
+    grids.forEach(function (g, gi) {
+      var row = Math.floor(gi / numSgCols), col = gi % numSgCols;
+      var cellLeft = centX - totalSgW / 2 + sgColStarts[col];
+      var cellTop  = centY - totalSgH / 2 + sgRowStarts[row];
+      var colX = cellLeft;
       for (var c = 0; c < g.gc; c++) {
-        var rowY = startY;
+        var rowY = cellTop;
         for (var r = 0; r < g.columns[c].length; r++) {
           var nd = g.columns[c][r];
           nd.x = colX + g.cws[c] / 2;
@@ -244,7 +266,6 @@
         }
         colX += g.cws[c] + SECT_CELL_X;
       }
-      startX += g.tw + SECT_COL_GAP;
     });
   });
 
@@ -396,11 +417,12 @@
         nmembers.forEach(function (n) { nmSet[n.id] = true; });
         var nb   = groupLayoutBBox(nkey);
         var nbCx = (nb[0] + nb[2]) / 2, nbCy = (nb[1] + nb[3]) / 2;
+        var nmGap = GROUP_MARGIN / 2; // min clearance between a node edge and a group border
         for (var nni = 0; nni < N; nni++) {
           var nn = nodes[nni];
           if (nmSet[nn.id]) continue;
-          var nox = Math.min(nb[2], nn.x + nn.w / 2) - Math.max(nb[0], nn.x - nn.w / 2);
-          var noy = Math.min(nb[3], nn.y + nn.h / 2) - Math.max(nb[1], nn.y - nn.h / 2);
+          var nox = Math.min(nb[2], nn.x + nn.w / 2) - Math.max(nb[0], nn.x - nn.w / 2) + nmGap;
+          var noy = Math.min(nb[3], nn.y + nn.h / 2) - Math.max(nb[1], nn.y - nn.h / 2) + nmGap;
           if (nox > 0 && noy > 0) {
             anyNm = true;
             if (nox < noy) {
@@ -536,23 +558,48 @@
   });
   var gW = maxX - minX, gH = maxY - minY;
 
-  // Canvas is always at least as large as the viewport so the cluster can be
-  // centred via scrollLeft/scrollTop even when content is smaller than the VP.
   var vpW = VP.offsetWidth  || window.innerWidth;
   var vpH = VP.offsetHeight || Math.max(window.innerHeight - VP.getBoundingClientRect().top - 4, 480);
-  var canvasW = Math.max(gW + 2 * PAD, vpW);
-  var canvasH = Math.max(gH + 2 * PAD, vpH);
-  var offX = (canvasW - gW) / 2;
-  var offY = (canvasH - gH) / 2;
+
+  // Fit the graph into the viewport by scaling; fall back to natural size +
+  // scrolling only when the result would be smaller than MIN_SCALE of natural.
+  var naturalW  = gW + 2 * PAD;
+  var naturalH  = gH + 2 * PAD;
+  var fitScale  = Math.min(1, vpW / naturalW, vpH / naturalH);
+  var MIN_SCALE = 0.5;
+  var fitted    = fitScale >= MIN_SCALE;
+
+  var canvasW, canvasH, offX, offY;
+  if (fitted) {
+    canvasW = naturalW;
+    canvasH = naturalH;
+    offX    = PAD;
+    offY    = PAD;
+  } else {
+    canvasW = Math.max(naturalW, vpW);
+    canvasH = Math.max(naturalH, vpH);
+    offX    = (canvasW - gW) / 2;
+    offY    = (canvasH - gH) / 2;
+  }
 
   nodes.forEach(function (n) {
     n.cx = n.x - minX + offX;
     n.cy = n.y - minY + offY;
   });
 
-  // ── Create canvas wrapper (natural scale, viewport scrolls) ────────────────
+  // ── Create canvas wrapper ──────────────────────────────────────────────────
+  VP.style.position = 'relative';
   var canvas = document.createElement('div');
-  canvas.style.cssText = 'position:relative;width:' + canvasW + 'px;height:' + canvasH + 'px;flex-shrink:0;';
+  if (fitted) {
+    var leftPos = Math.max(0, (vpW - naturalW * fitScale) / 2);
+    var topPos  = Math.max(0, (vpH - naturalH * fitScale) / 2);
+    canvas.style.cssText =
+      'position:absolute;left:' + leftPos.toFixed(1) + 'px;top:' + topPos.toFixed(1) + 'px;' +
+      'width:' + canvasW + 'px;height:' + canvasH + 'px;' +
+      'transform:scale(' + fitScale.toFixed(4) + ');transform-origin:top left;';
+  } else {
+    canvas.style.cssText = 'position:relative;width:' + canvasW + 'px;height:' + canvasH + 'px;flex-shrink:0;';
+  }
 
   nodes.forEach(function (n) {
     n.el.style.left   = (n.cx - n.w / 2) + 'px';
@@ -907,9 +954,13 @@
     });
   });
 
-  // ── Centre the initial scroll position ───────────────────────────────────
-  VP.scrollLeft = (canvasW - vpW) / 2;
-  VP.scrollTop  = (canvasH - vpH) / 2;
+  // ── Centre the initial view ───────────────────────────────────────────────
+  if (fitted) {
+    VP.style.overflow = 'hidden';
+  } else {
+    VP.scrollLeft = (canvasW - vpW) / 2;
+    VP.scrollTop  = (canvasH - vpH) / 2;
+  }
   VP.classList.add('is-ready');
 
   // ── Labels toggle ─────────────────────────────────────────────────────────
