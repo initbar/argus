@@ -1,5 +1,7 @@
 [![](https://github.com/initbar/argus/actions/workflows/build.yml/badge.svg)](https://github.com/initbar/argus/actions/workflows/build.yml)
 
+![](./argus.png)
+
 # argus
 
 **argus** is a notetaking app to keep track of highly complex systems (DAG).
