@@ -686,9 +686,25 @@
     }
 
     if (!pts.length) return;
-    var pad  = nested ? SUBGRP_PAD : OUTER_GAP;
-    var hull = convexHull(pts);
-    var d    = roundedHullPath(hull, pad);
+    var pad = nested ? SUBGRP_PAD : OUTER_GAP;
+
+    // Axis-aligned bounding box guarantees identical margin on all sides
+    var bx1 = Infinity, by1 = Infinity, bx2 = -Infinity, by2 = -Infinity;
+    pts.forEach(function (p) {
+      bx1 = Math.min(bx1, p[0]); by1 = Math.min(by1, p[1]);
+      bx2 = Math.max(bx2, p[0]); by2 = Math.max(by2, p[1]);
+    });
+    bx1 -= pad; by1 -= pad; bx2 += pad; by2 += pad;
+    var cr = pad;
+    var d = 'M' + (bx1 + cr).toFixed(1) + ',' + by1.toFixed(1) +
+            ' L' + (bx2 - cr).toFixed(1) + ',' + by1.toFixed(1) +
+            ' A' + cr + ',' + cr + ' 0 0,1 ' + bx2.toFixed(1) + ',' + (by1 + cr).toFixed(1) +
+            ' L' + bx2.toFixed(1) + ',' + (by2 - cr).toFixed(1) +
+            ' A' + cr + ',' + cr + ' 0 0,1 ' + (bx2 - cr).toFixed(1) + ',' + by2.toFixed(1) +
+            ' L' + (bx1 + cr).toFixed(1) + ',' + by2.toFixed(1) +
+            ' A' + cr + ',' + cr + ' 0 0,1 ' + bx1.toFixed(1) + ',' + (by2 - cr).toFixed(1) +
+            ' L' + bx1.toFixed(1) + ',' + (by1 + cr).toFixed(1) +
+            ' A' + cr + ',' + cr + ' 0 0,1 ' + (bx1 + cr).toFixed(1) + ',' + by1.toFixed(1) + ' Z';
 
     var boundary = document.createElementNS(ns, 'path');
     boundary.setAttribute('d',                d);
@@ -698,12 +714,10 @@
     boundary.setAttribute('class', 'group-boundary ' + (nested ? 'group-nested' : 'group-outer'));
     svg.appendChild(boundary);
 
-    var topPt = hull.reduce(function (a, b) { return b[1] < a[1] ? b : a; });
-    var sumX  = hull.reduce(function (s, p) { return s + p[0]; }, 0);
     var label = key.split('/').pop().toUpperCase();
     var lbl   = document.createElementNS(ns, 'text');
-    lbl.setAttribute('x',              (sumX / hull.length).toFixed(1));
-    lbl.setAttribute('y',              (topPt[1] - pad - 6).toFixed(1));
+    lbl.setAttribute('x',              ((bx1 + bx2) / 2).toFixed(1));
+    lbl.setAttribute('y',              (by1 - 6).toFixed(1));
     lbl.setAttribute('text-anchor',    'middle');
     lbl.setAttribute('font-size',      nested ? '11' : '12');
     lbl.setAttribute('letter-spacing', '1');
