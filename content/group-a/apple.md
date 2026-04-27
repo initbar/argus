@@ -2,7 +2,7 @@
 title: Apple
 description: An apple a day keeps the doctors away
 links:
-    - to: [[group-b/potassium, group-c/carrot, group-c/group-d/potato]]
+    - to: [[group-b/banana, group-c/carrot, group-c/group-d/potato]]
       label: apple
       type: arrow
 ---

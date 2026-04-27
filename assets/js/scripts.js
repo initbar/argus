@@ -54,13 +54,23 @@
     return ch.filter(function (id) { return idMap[id]; });
   }).filter(function (ch) { return ch.length >= 2; });
 
-  // Index: nodeId → [chainIndex, …] for fast lookup during hover
+  // Index: sourceId → [chainIndex, …] — only the first node (chain source) triggers highlight
   var chainsByNode = {};
   validChains.forEach(function (ch, ci) {
-    ch.forEach(function (id) {
-      if (!chainsByNode[id]) chainsByNode[id] = [];
-      chainsByNode[id].push(ci);
-    });
+    var src = ch[0];
+    if (!chainsByNode[src]) chainsByNode[src] = [];
+    chainsByNode[src].push(ci);
+  });
+
+  // Index: "a|b" (sorted) → { sourceId: true } — which chain sources own each consecutive pair
+  var chainEdgeSources = {};
+  validChains.forEach(function (ch) {
+    var src = ch[0];
+    for (var i = 0; i < ch.length - 1; i++) {
+      var key = [ch[i], ch[i + 1]].sort().join('|');
+      if (!chainEdgeSources[key]) chainEdgeSources[key] = {};
+      chainEdgeSources[key][src] = true;
+    }
   });
 
   var groupMap = {};
@@ -929,10 +939,17 @@
       var neighbors = neighborMap[hovN.id] || {};
       VP.classList.add('has-hover');
 
-      // Full highlighted set: hovered node + direct neighbours + all chain members
+      // Full highlighted set: hovered node + direct neighbours (skipping chain-only edges
+      // where hovN is not the chain source) + all chain members if hovN is a source
       var highlightedNodes = {};
       highlightedNodes[hovN.id] = true;
-      Object.keys(neighbors).forEach(function (nid) { highlightedNodes[nid] = true; });
+      Object.keys(neighbors).forEach(function (nid) {
+        var edgeKey = [hovN.id, nid].sort().join('|');
+        var chainSrcs = chainEdgeSources[edgeKey];
+        if (!chainSrcs || chainSrcs[hovN.id]) {
+          highlightedNodes[nid] = true;
+        }
+      });
       (chainsByNode[hovN.id] || []).forEach(function (ci) {
         validChains[ci].forEach(function (nid) { highlightedNodes[nid] = true; });
       });
@@ -941,7 +958,14 @@
         n.el.classList.toggle('is-highlighted', !!highlightedNodes[n.id]);
       });
       edgePaths.forEach(function (ep) {
-        var hit = !!highlightedNodes[ep.from] && !!highlightedNodes[ep.to];
+        var edgeKey = [ep.from, ep.to].sort().join('|');
+        var chainSrcs = chainEdgeSources[edgeKey];
+        var hit;
+        if (chainSrcs) {
+          hit = !!chainSrcs[hovN.id];
+        } else {
+          hit = !!highlightedNodes[ep.from] && !!highlightedNodes[ep.to];
+        }
         ep.el.classList.toggle('is-highlighted', hit);
         if (ep.labelEl)  ep.labelEl.classList.toggle('is-highlighted', hit);
         if (ep.arrowEl)  ep.arrowEl.classList.toggle('is-highlighted', hit);
