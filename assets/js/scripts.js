@@ -872,14 +872,14 @@
     path.setAttribute('d',     d);
     path.setAttribute('fill',  'none');
     path.setAttribute('class', 'edge-link');
-    if (lk.type === 'dashed') {
+    if (lk.type === 'dashed' || lk.type === 'dashed arrow') {
       path.setAttribute('stroke-dasharray', '6 4');
     }
     svg.appendChild(path);
 
     // Arrowhead drawn as a filled triangle; hidden by default, shown on hover
     var arrowEl = null;
-    if (lk.type === 'arrow') {
+    if (lk.type === 'arrow' || lk.type === 'dashed arrow') {
       var aLen = Math.sqrt(endDx * endDx + endDy * endDy) || 1;
       var aux = endDx / aLen, auy = endDy / aLen;
       var aw = 5, al = 9;
@@ -927,27 +927,20 @@
   });
 
   // ── Hover highlighting ────────────────────────────────────────────────────
-  var neighborMap = {};
-  nodes.forEach(function (n) { neighborMap[n.id] = {}; });
-  edges.forEach(function (lk) {
-    if (neighborMap[lk.from]) neighborMap[lk.from][lk.to] = true;
-    if (neighborMap[lk.to])   neighborMap[lk.to][lk.from] = true;
-  });
-
   nodes.forEach(function (hovN) {
     hovN.el.addEventListener('mouseenter', function () {
-      var neighbors = neighborMap[hovN.id] || {};
       VP.classList.add('has-hover');
 
-      // Full highlighted set: hovered node + direct neighbours (skipping chain-only edges
-      // where hovN is not the chain source) + all chain members if hovN is a source
+      // Highlighted set: hovered node + targets of edges defined BY hovN
+      // (ep.from === hovN.id for direct edges; chain source for chain edges)
       var highlightedNodes = {};
       highlightedNodes[hovN.id] = true;
-      Object.keys(neighbors).forEach(function (nid) {
-        var edgeKey = [hovN.id, nid].sort().join('|');
-        var chainSrcs = chainEdgeSources[edgeKey];
-        if (!chainSrcs || chainSrcs[hovN.id]) {
-          highlightedNodes[nid] = true;
+
+      edgePaths.forEach(function (ep) {
+        if (ep.from !== hovN.id) return;
+        var edgeKey = [ep.from, ep.to].sort().join('|');
+        if (!chainEdgeSources[edgeKey]) {
+          highlightedNodes[ep.to] = true;
         }
       });
       (chainsByNode[hovN.id] || []).forEach(function (ci) {
@@ -964,7 +957,7 @@
         if (chainSrcs) {
           hit = !!chainSrcs[hovN.id];
         } else {
-          hit = !!highlightedNodes[ep.from] && !!highlightedNodes[ep.to];
+          hit = ep.from === hovN.id;
         }
         ep.el.classList.toggle('is-highlighted', hit);
         if (ep.labelEl)  ep.labelEl.classList.toggle('is-highlighted', hit);
