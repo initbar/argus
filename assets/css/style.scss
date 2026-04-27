@@ -130,9 +130,31 @@ body {
 .graph-viewport {
   position: relative;
   flex: 1;
-  overflow: hidden;
+  overflow: auto;
   opacity: 0;
   transition: opacity 0.5s ease;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+
+  &::-webkit-scrollbar {
+    width: 5px;
+    height: 5px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 99px;
+
+    &:hover { background: var(--subtle); }
+  }
+
+  &::-webkit-scrollbar-corner {
+    background: transparent;
+  }
 
   &.is-ready { opacity: 1; }
 }

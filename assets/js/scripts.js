@@ -506,7 +506,7 @@
     if (!anyOvl4) break;
   }
 
-  // ── Compute canvas bounding box and canvas-relative coords ────────────────
+  // ── Compute canvas bounding box ───────────────────────────────────────────
   var minX =  Infinity, minY =  Infinity;
   var maxX = -Infinity, maxY = -Infinity;
   nodes.forEach(function (n) {
@@ -514,14 +514,24 @@
     maxX = Math.max(maxX, n.x + n.w / 2); maxY = Math.max(maxY, n.y + n.h / 2);
   });
   var gW = maxX - minX, gH = maxY - minY;
+
+  // Canvas is always at least as large as the viewport so the cluster can be
+  // centred via scrollLeft/scrollTop even when content is smaller than the VP.
+  var vpW = VP.offsetWidth  || window.innerWidth;
+  var vpH = VP.offsetHeight || Math.max(window.innerHeight - VP.getBoundingClientRect().top - 4, 480);
+  var canvasW = Math.max(gW + 2 * PAD, vpW);
+  var canvasH = Math.max(gH + 2 * PAD, vpH);
+  var offX = (canvasW - gW) / 2;
+  var offY = (canvasH - gH) / 2;
+
   nodes.forEach(function (n) {
-    n.cx = n.x - minX;
-    n.cy = n.y - minY;
+    n.cx = n.x - minX + offX;
+    n.cy = n.y - minY + offY;
   });
 
-  // ── Create canvas wrapper (natural scale, CSS-transformed to fit VP) ───────
+  // ── Create canvas wrapper (natural scale, viewport scrolls) ────────────────
   var canvas = document.createElement('div');
-  canvas.style.cssText = 'position:absolute;top:0;left:0;width:' + gW + 'px;height:' + gH + 'px;transform-origin:top left;';
+  canvas.style.cssText = 'position:relative;width:' + canvasW + 'px;height:' + canvasH + 'px;flex-shrink:0;';
 
   nodes.forEach(function (n) {
     n.el.style.left   = (n.cx - n.w / 2) + 'px';
@@ -535,8 +545,8 @@
   var ns  = 'http://www.w3.org/2000/svg';
   var svg = document.createElementNS(ns, 'svg');
   svg.setAttribute('aria-hidden', 'true');
-  svg.setAttribute('width',  gW);
-  svg.setAttribute('height', gH);
+  svg.setAttribute('width',  canvasW);
+  svg.setAttribute('height', canvasH);
   svg.style.cssText = 'position:absolute;top:0;left:0;pointer-events:none;overflow:visible;';
   canvas.insertBefore(svg, canvas.firstChild);
   VP.appendChild(canvas);
@@ -544,8 +554,8 @@
   // ── Label overlay SVG (appended after node elements so it renders above them) ──
   var svgTop = document.createElementNS(ns, 'svg');
   svgTop.setAttribute('aria-hidden', 'true');
-  svgTop.setAttribute('width',  gW);
-  svgTop.setAttribute('height', gH);
+  svgTop.setAttribute('width',  canvasW);
+  svgTop.setAttribute('height', canvasH);
   svgTop.style.cssText = 'position:absolute;top:0;left:0;pointer-events:none;overflow:visible;';
   canvas.appendChild(svgTop);
 
@@ -892,25 +902,9 @@
     });
   });
 
-  // ── Responsive fit (recomputed on resize, layout fixed) ───────────────────
-  function applyFit() {
-    var vpW = VP.offsetWidth || window.innerWidth;
-    var vpH = Math.max(window.innerHeight - VP.getBoundingClientRect().top - 4, 480);
-    VP.style.height = vpH + 'px';
-    var s  = Math.min(1, (vpW - 2 * PAD) / gW, (vpH - 2 * PAD) / gH);
-    var tx = (vpW - gW * s) / 2;
-    var ty = (vpH - gH * s) / 2;
-    canvas.style.transform =
-      'translate(' + tx.toFixed(1) + 'px,' + ty.toFixed(1) + 'px) scale(' + s.toFixed(4) + ')';
-  }
-
-  var resizeTimer;
-  window.addEventListener('resize', function () {
-    clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(applyFit, 150);
-  });
-
-  applyFit();
+  // ── Centre the initial scroll position ───────────────────────────────────
+  VP.scrollLeft = (canvasW - vpW) / 2;
+  VP.scrollTop  = (canvasH - vpH) / 2;
   VP.classList.add('is-ready');
 
   // ── Labels toggle ─────────────────────────────────────────────────────────
