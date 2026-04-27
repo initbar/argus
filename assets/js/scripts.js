@@ -7,10 +7,11 @@
   if (!nodeEls.length) return;
 
   // ── Constants ──────────────────────────────────────────────────────────────
-  var HULL_PAD      = 48;
-  var GROUP_PADDING = 24; // min gap: a group's inner border → its children (nodes or child groups)
-  var GROUP_MARGIN  = 24; // min gap: outer border of one sibling group → outer border of another
-  var PAD           = 90;
+  var HULL_PAD        = 48;
+  var GROUP_PADDING   = 24;  // min gap: a group's inner border → its children (nodes or child groups)
+  var GROUP_MARGIN    = 24;  // min gap: outer border of one sibling group → outer border of another
+  var SECTION_MARGIN  = 100; // min gap: outer border of one top-level section → another
+  var PAD             = 90;
 
   // ── Build data structures ─────────────────────────────────────────────────
   var nodes = nodeEls.map(function (el) {
@@ -489,6 +490,43 @@
     if (!anyOvl4) break;
   }
 
+  // ── Redistribute top-level sections for balance ───────────────────────────
+  // Sort sections by their current bbox x-centre, then place them left-to-right
+  // with exactly SECTION_MARGIN between bbox edges.  Vertically centre the whole
+  // arrangement so it sits symmetrically around y = 0.
+  (function () {
+    if (sections.length < 2) return;
+
+    var items = sections.map(function (sec) {
+      var bb = groupLayoutBBox(sec);
+      return { key: sec, bb: bb };
+    }).filter(function (item) {
+      return isFinite(item.bb[0]);
+    }).sort(function (a, b) {
+      return ((a.bb[0] + a.bb[2]) / 2) - ((b.bb[0] + b.bb[2]) / 2);
+    });
+
+    if (items.length < 2) return;
+
+    var totalW = items.reduce(function (s, item) {
+      return s + (item.bb[2] - item.bb[0]);
+    }, 0) + (items.length - 1) * SECTION_MARGIN;
+
+    var curX = -totalW / 2;
+    items.forEach(function (item) {
+      var bw    = item.bb[2] - item.bb[0];
+      var oldCx = (item.bb[0] + item.bb[2]) / 2;
+      var dx    = curX + bw / 2 - oldCx;
+      sectionMap[item.key].forEach(function (n) { n.x += dx; });
+      curX += bw + SECTION_MARGIN;
+    });
+
+    var avgCy = items.reduce(function (s, item) {
+      return s + (item.bb[1] + item.bb[3]) / 2;
+    }, 0) / items.length;
+    nodes.forEach(function (n) { n.y -= avgCy; });
+  }());
+
   // ── Compute canvas bounding box ───────────────────────────────────────────
   var minX =  Infinity, minY =  Infinity;
   var maxX = -Infinity, maxY = -Infinity;
@@ -634,60 +672,44 @@
   }
 
   // ── Draw group boundaries (uses canvas coords n.cx / n.cy) ───────────────
+  // Mirror of groupLayoutBBox but uses cx/cy (canvas coords set after layout).
+  // Returns the drawn bbox — GROUP_PADDING around direct-child group borders
+  // and direct nodes — for any group at any depth.
+  function groupCanvasBBox(key) {
+    var directChildKeys = allGroupKeys.filter(function (k) {
+      return k.substring(0, k.lastIndexOf('/')) === key;
+    });
+    var inChild = {};
+    directChildKeys.forEach(function (ck) {
+      groupMap[ck].forEach(function (n) { inChild[n.id] = true; });
+    });
+    var bx1 = Infinity, by1 = Infinity, bx2 = -Infinity, by2 = -Infinity;
+    directChildKeys.forEach(function (ck) {
+      var cb = groupCanvasBBox(ck);
+      bx1 = Math.min(bx1, cb[0] - GROUP_PADDING);
+      by1 = Math.min(by1, cb[1] - GROUP_PADDING);
+      bx2 = Math.max(bx2, cb[2] + GROUP_PADDING);
+      by2 = Math.max(by2, cb[3] + GROUP_PADDING);
+    });
+    groupMap[key].forEach(function (n) {
+      if (inChild[n.id]) return;
+      bx1 = Math.min(bx1, n.cx - n.w / 2 - GROUP_PADDING);
+      by1 = Math.min(by1, n.cy - n.h / 2 - GROUP_PADDING);
+      bx2 = Math.max(bx2, n.cx + n.w / 2 + GROUP_PADDING);
+      by2 = Math.max(by2, n.cy + n.h / 2 + GROUP_PADDING);
+    });
+    return [bx1, by1, bx2, by2];
+  }
+
   var groupElems = {};
   allGroupKeys.forEach(function (key) {
     var depth  = key.split('/').length;
     var nested = depth > 1;
-    var sn     = groupMap[key];
-    var pts    = [];
+    var bb = groupCanvasBBox(key);
+    var bx1 = bb[0], by1 = bb[1], bx2 = bb[2], by2 = bb[3];
+    if (!isFinite(bx1)) return;
 
-    if (nested) {
-      sn.forEach(function (n) {
-        var hw = n.w / 2, hh = n.h / 2;
-        pts.push([n.cx - hw, n.cy - hh]);
-        pts.push([n.cx + hw, n.cy - hh]);
-        pts.push([n.cx + hw, n.cy + hh]);
-        pts.push([n.cx - hw, n.cy + hh]);
-      });
-    } else {
-      var childSgKeys = nestedKeys.filter(function (k) {
-        return k.substring(0, k.lastIndexOf('/')) === key;
-      });
-      var inSg = {};
-      childSgKeys.forEach(function (ck) {
-        var bx1 =  Infinity, by1 =  Infinity;
-        var bx2 = -Infinity, by2 = -Infinity;
-        groupMap[ck].forEach(function (n) {
-          inSg[n.id] = true;
-          bx1 = Math.min(bx1, n.cx - n.w / 2 - GROUP_PADDING);
-          by1 = Math.min(by1, n.cy - n.h / 2 - GROUP_PADDING);
-          bx2 = Math.max(bx2, n.cx + n.w / 2 + GROUP_PADDING);
-          by2 = Math.max(by2, n.cy + n.h / 2 + GROUP_PADDING);
-        });
-        pts.push([bx1, by1]); pts.push([bx2, by1]);
-        pts.push([bx2, by2]); pts.push([bx1, by2]);
-      });
-      sn.forEach(function (n) {
-        if (inSg[n.id]) return;
-        var hw = n.w / 2, hh = n.h / 2;
-        pts.push([n.cx - hw, n.cy - hh]);
-        pts.push([n.cx + hw, n.cy - hh]);
-        pts.push([n.cx + hw, n.cy + hh]);
-        pts.push([n.cx - hw, n.cy + hh]);
-      });
-    }
-
-    if (!pts.length) return;
-    var pad = GROUP_PADDING;
-
-    // Axis-aligned bounding box guarantees identical margin on all sides
-    var bx1 = Infinity, by1 = Infinity, bx2 = -Infinity, by2 = -Infinity;
-    pts.forEach(function (p) {
-      bx1 = Math.min(bx1, p[0]); by1 = Math.min(by1, p[1]);
-      bx2 = Math.max(bx2, p[0]); by2 = Math.max(by2, p[1]);
-    });
-    bx1 -= pad; by1 -= pad; bx2 += pad; by2 += pad;
-    var cr = pad;
+    var cr = GROUP_PADDING;
     var d = 'M' + (bx1 + cr).toFixed(1) + ',' + by1.toFixed(1) +
             ' L' + (bx2 - cr).toFixed(1) + ',' + by1.toFixed(1) +
             ' A' + cr + ',' + cr + ' 0 0,1 ' + bx2.toFixed(1) + ',' + (by1 + cr).toFixed(1) +
