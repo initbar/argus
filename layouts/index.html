@@ -39,22 +39,44 @@
   </div>
 </div>
 
-{{/* Collect link data — each entry supports a plain string ("id") or a map ({to: "id", label: "text"}) */}}
-{{ $linkData := slice }}
+{{/* Collect link + chain data */}}
+{{ $linkData  := slice }}
+{{ $chainData := slice }}
 {{ range .Site.RegularPages }}
   {{ $page := . }}
   {{ $dir := strings.TrimSuffix "/" $page.File.Dir }}
   {{ $from := cond (eq $dir "") $page.File.ContentBaseName (printf "%s/%s" $dir $page.File.ContentBaseName) }}
   {{ range $page.Params.links }}
     {{ if reflect.IsMap . }}
-      {{ $linkData = $linkData | append (dict "from" $from "to" .to "label" (.label | default "")) }}
+      {{ $to    := .to }}
+      {{ $label := .label | default "" }}
+      {{ $type  := .type  | default "line" }}
+      {{ if reflect.IsSlice $to }}
+        {{ range $to }}
+          {{ if reflect.IsSlice . }}
+            {{/* Transition chain: source → [0] → [1] → … */}}
+            {{ $chain := slice $from }}
+            {{ $prev  := $from }}
+            {{ range . }}
+              {{ $linkData  = $linkData  | append (dict "from" $prev "to" . "label" $label "type" $type) }}
+              {{ $chain     = $chain     | append . }}
+              {{ $prev      = . }}
+            {{ end }}
+            {{ $chainData = $chainData | append (dict "nodes" $chain) }}
+          {{ else }}
+            {{ $linkData = $linkData | append (dict "from" $from "to" . "label" $label "type" $type) }}
+          {{ end }}
+        {{ end }}
+      {{ else }}
+        {{ $linkData = $linkData | append (dict "from" $from "to" $to "label" $label "type" $type) }}
+      {{ end }}
     {{ else }}
-      {{ $linkData = $linkData | append (dict "from" $from "to" . "label" "") }}
+      {{ $linkData = $linkData | append (dict "from" $from "to" . "label" "" "type" "line") }}
     {{ end }}
   {{ end }}
 {{ end }}
 
-<script id="note-links" type="application/json">{{ $linkData | jsonify | safeJS }}</script>
+<script id="note-links" type="application/json">{{ dict "edges" $linkData "chains" $chainData | jsonify | safeJS }}</script>
 {{ $js := resources.Get "js/scripts.js" | minify }}
 <script src="{{ $js.RelPermalink }}"></script>
 {{ end }}

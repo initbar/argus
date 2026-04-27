@@ -119,31 +119,10 @@ body {
 .graph-viewport {
   position: relative;
   flex: 1;
-  overflow: auto;
+  overflow: hidden;
   opacity: 0;
   transition: opacity 0.5s ease;
-  scrollbar-width: thin;
-  scrollbar-color: var(--border) transparent;
-
-  &::-webkit-scrollbar {
-    width: 5px;
-    height: 5px;
-  }
-
-  &::-webkit-scrollbar-track {
-    background: transparent;
-  }
-
-  &::-webkit-scrollbar-thumb {
-    background: var(--border);
-    border-radius: 99px;
-
-    &:hover { background: var(--subtle); }
-  }
-
-  &::-webkit-scrollbar-corner {
-    background: transparent;
-  }
+  cursor: grab;
 
   &.is-ready { opacity: 1; }
 }
@@ -234,6 +213,17 @@ body {
 }
 
 .graph-viewport.labels-enabled.has-hover svg .edge-label.is-highlighted {
+  opacity: 1;
+}
+
+// Arrow edge heads
+.graph-viewport svg .edge-arrow-head {
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  pointer-events: none;
+}
+
+.graph-viewport.has-hover svg .edge-arrow-head.is-highlighted {
   opacity: 1;
 }
 
@@ -409,6 +399,22 @@ body {
     color: var(--text);
     margin-top: 2.75rem;
     margin-bottom: 0.65rem;
+
+    .heading-anchor {
+      display: inline-block;
+      margin-left: 0.4em;
+      font-weight: 400;
+      font-size: 0.75em;
+      color: var(--subtle);
+      text-decoration: none;
+      opacity: 0;
+      transition: opacity 0.15s ease;
+      vertical-align: middle;
+    }
+
+    &:hover .heading-anchor {
+      opacity: 1;
+    }
   }
 
   h1 { font-size: var(--text-xl); }

@@ -2,7 +2,11 @@
   var VP = document.getElementById('graph-viewport');
   if (!VP) return;
 
-  var rawLinks = JSON.parse(document.getElementById('note-links').textContent);
+  var rawData   = JSON.parse(document.getElementById('note-links').textContent);
+  var rawLinks  = Array.isArray(rawData) ? rawData : (rawData.edges  || []);
+  var rawChains = (Array.isArray(rawData) ? [] : (rawData.chains || [])).map(function (ch) {
+    return Array.isArray(ch) ? ch : (ch.nodes || []);
+  });
   var nodeEls  = Array.from(VP.querySelectorAll('.graph-node'));
   if (!nodeEls.length) return;
 
@@ -33,8 +37,30 @@
   var idMap = {};
   nodes.forEach(function (n) { idMap[n.id] = n; });
 
-  var edges = rawLinks.filter(function (lk) {
+  // Deduplicate: A→B and B→A collapse to one edge; prefer the entry with a label
+  var edgePairMap = {};
+  rawLinks.filter(function (lk) {
     return idMap[lk.from] && idMap[lk.to];
+  }).forEach(function (lk) {
+    var key = [lk.from, lk.to].sort().join('|');
+    if (!edgePairMap[key] || (!edgePairMap[key].label && lk.label)) {
+      edgePairMap[key] = lk;
+    }
+  });
+  var edges = Object.keys(edgePairMap).map(function (k) { return edgePairMap[k]; });
+
+  // Filter chains to known nodes; keep only chains with 2+ valid members
+  var validChains = rawChains.map(function (ch) {
+    return ch.filter(function (id) { return idMap[id]; });
+  }).filter(function (ch) { return ch.length >= 2; });
+
+  // Index: nodeId → [chainIndex, …] for fast lookup during hover
+  var chainsByNode = {};
+  validChains.forEach(function (ch, ci) {
+    ch.forEach(function (id) {
+      if (!chainsByNode[id]) chainsByNode[id] = [];
+      chainsByNode[id].push(ci);
+    });
   });
 
   var groupMap = {};
@@ -561,26 +587,10 @@
   var vpW = VP.offsetWidth  || window.innerWidth;
   var vpH = VP.offsetHeight || Math.max(window.innerHeight - VP.getBoundingClientRect().top - 4, 480);
 
-  // Fit the graph into the viewport by scaling; fall back to natural size +
-  // scrolling only when the result would be smaller than MIN_SCALE of natural.
-  var naturalW  = gW + 2 * PAD;
-  var naturalH  = gH + 2 * PAD;
-  var fitScale  = Math.min(1, vpW / naturalW, vpH / naturalH);
-  var MIN_SCALE = 0.5;
-  var fitted    = fitScale >= MIN_SCALE;
-
-  var canvasW, canvasH, offX, offY;
-  if (fitted) {
-    canvasW = naturalW;
-    canvasH = naturalH;
-    offX    = PAD;
-    offY    = PAD;
-  } else {
-    canvasW = Math.max(naturalW, vpW);
-    canvasH = Math.max(naturalH, vpH);
-    offX    = (canvasW - gW) / 2;
-    offY    = (canvasH - gH) / 2;
-  }
+  var canvasW = gW + 2 * PAD;
+  var canvasH = gH + 2 * PAD;
+  var offX    = PAD;
+  var offY    = PAD;
 
   nodes.forEach(function (n) {
     n.cx = n.x - minX + offX;
@@ -590,16 +600,18 @@
   // ── Create canvas wrapper ──────────────────────────────────────────────────
   VP.style.position = 'relative';
   var canvas = document.createElement('div');
-  if (fitted) {
-    var leftPos = Math.max(0, (vpW - naturalW * fitScale) / 2);
-    var topPos  = Math.max(0, (vpH - naturalH * fitScale) / 2);
-    canvas.style.cssText =
-      'position:absolute;left:' + leftPos.toFixed(1) + 'px;top:' + topPos.toFixed(1) + 'px;' +
-      'width:' + canvasW + 'px;height:' + canvasH + 'px;' +
-      'transform:scale(' + fitScale.toFixed(4) + ');transform-origin:top left;';
-  } else {
-    canvas.style.cssText = 'position:relative;width:' + canvasW + 'px;height:' + canvasH + 'px;flex-shrink:0;';
-  }
+  canvas.style.cssText =
+    'position:absolute;left:0;top:0;width:' + canvasW + 'px;height:' + canvasH + 'px;' +
+    'transform-origin:0 0;will-change:transform;';
+
+  // ── SVG overlay (background — rendered behind nodes) ─────────────────────
+  var ns  = 'http://www.w3.org/2000/svg';
+  var svg = document.createElementNS(ns, 'svg');
+  svg.setAttribute('aria-hidden', 'true');
+  svg.setAttribute('width',  canvasW);
+  svg.setAttribute('height', canvasH);
+  svg.style.cssText = 'position:absolute;top:0;left:0;pointer-events:none;overflow:visible;';
+  canvas.appendChild(svg);
 
   nodes.forEach(function (n) {
     n.el.style.left   = (n.cx - n.w / 2) + 'px';
@@ -609,23 +621,15 @@
     canvas.appendChild(n.el);
   });
 
-  // ── SVG overlay (inside canvas, uses canvas coords) ───────────────────────
-  var ns  = 'http://www.w3.org/2000/svg';
-  var svg = document.createElementNS(ns, 'svg');
-  svg.setAttribute('aria-hidden', 'true');
-  svg.setAttribute('width',  canvasW);
-  svg.setAttribute('height', canvasH);
-  svg.style.cssText = 'position:absolute;top:0;left:0;pointer-events:none;overflow:visible;';
-  canvas.insertBefore(svg, canvas.firstChild);
-  VP.appendChild(canvas);
-
-  // ── Label overlay SVG (appended after node elements so it renders above them) ──
+  // ── Label overlay SVG (rendered above nodes) ──────────────────────────────
   var svgTop = document.createElementNS(ns, 'svg');
   svgTop.setAttribute('aria-hidden', 'true');
   svgTop.setAttribute('width',  canvasW);
   svgTop.setAttribute('height', canvasH);
   svgTop.style.cssText = 'position:absolute;top:0;left:0;pointer-events:none;overflow:visible;';
   canvas.appendChild(svgTop);
+
+  VP.appendChild(canvas);
 
   // ── Word-wrap helper: fills textEl with <tspan> lines, returns line count ──
   function wrapText(textEl, str, maxW) {
@@ -799,6 +803,7 @@
     var ax = a.cx, ay = a.cy, bx = b.cx, by = b.cy;
     var d;
     var midX, midY;
+    var endX, endY, endDx, endDy; // tip position and direction for arrowhead
 
     var intra = a.section && b.section && a.section === b.section;
 
@@ -813,6 +818,7 @@
       // cubic bezier midpoint at t=0.5: 0.125*P0 + 0.375*P1 + 0.375*P2 + 0.125*P3
       midX = 0.125 * sx + 0.375 * mx + 0.375 * mx + 0.125 * tx;
       midY = 0.125 * sy + 0.375 * sy + 0.375 * ty + 0.125 * ty;
+      endX = tx; endY = ty; endDx = tx - mx; endDy = 0;
     } else {
       var dx = bx - ax, dy = by - ay;
       var len = Math.sqrt(dx * dx + dy * dy) || 1;
@@ -849,13 +855,34 @@
       // quadratic bezier midpoint at t=0.5: 0.25*P0 + 0.5*CP + 0.25*P2
       midX = 0.25 * sp[0] + 0.5 * cpX + 0.25 * tp[0];
       midY = 0.25 * sp[1] + 0.5 * cpY + 0.25 * tp[1];
+      endX = tp[0]; endY = tp[1]; endDx = tp[0] - cpX; endDy = tp[1] - cpY;
     }
 
     var path = document.createElementNS(ns, 'path');
     path.setAttribute('d',     d);
     path.setAttribute('fill',  'none');
     path.setAttribute('class', 'edge-link');
+    if (lk.type === 'dashed') {
+      path.setAttribute('stroke-dasharray', '6 4');
+    }
     svg.appendChild(path);
+
+    // Arrowhead drawn as a filled triangle; hidden by default, shown on hover
+    var arrowEl = null;
+    if (lk.type === 'arrow') {
+      var aLen = Math.sqrt(endDx * endDx + endDy * endDy) || 1;
+      var aux = endDx / aLen, auy = endDy / aLen;
+      var aw = 5, al = 9;
+      var bpx = endX - al * aux, bpy = endY - al * auy;
+      var arrowD = 'M' + endX.toFixed(1)               + ',' + endY.toFixed(1) +
+                   ' L' + (bpx - aw * auy).toFixed(1)  + ',' + (bpy + aw * aux).toFixed(1) +
+                   ' L' + (bpx + aw * auy).toFixed(1)  + ',' + (bpy - aw * aux).toFixed(1) + ' Z';
+      arrowEl = document.createElementNS(ns, 'path');
+      arrowEl.setAttribute('d',     arrowD);
+      arrowEl.setAttribute('fill',  'currentColor');
+      arrowEl.setAttribute('class', 'edge-arrow-head');
+      svg.appendChild(arrowEl);
+    }
 
     var labelEl = null;
     if (lk.label) {
@@ -886,7 +913,7 @@
       labelEl = labelG;
     }
 
-    edgePaths.push({ from: lk.from, to: lk.to, el: path, labelEl: labelEl });
+    edgePaths.push({ from: lk.from, to: lk.to, el: path, labelEl: labelEl, arrowEl: arrowEl });
   });
 
   // ── Hover highlighting ────────────────────────────────────────────────────
@@ -902,18 +929,25 @@
       var neighbors = neighborMap[hovN.id] || {};
       VP.classList.add('has-hover');
 
-      nodes.forEach(function (n) {
-        n.el.classList.toggle('is-highlighted', n.id === hovN.id || !!neighbors[n.id]);
-      });
-      edgePaths.forEach(function (ep) {
-        var hit = ep.from === hovN.id || ep.to === hovN.id;
-        ep.el.classList.toggle('is-highlighted', hit);
-        if (ep.labelEl) ep.labelEl.classList.toggle('is-highlighted', hit);
+      // Full highlighted set: hovered node + direct neighbours + all chain members
+      var highlightedNodes = {};
+      highlightedNodes[hovN.id] = true;
+      Object.keys(neighbors).forEach(function (nid) { highlightedNodes[nid] = true; });
+      (chainsByNode[hovN.id] || []).forEach(function (ci) {
+        validChains[ci].forEach(function (nid) { highlightedNodes[nid] = true; });
       });
 
-      var connNodeIds = {};
-      connNodeIds[hovN.id] = true;
-      Object.keys(neighbors).forEach(function (nid) { connNodeIds[nid] = true; });
+      nodes.forEach(function (n) {
+        n.el.classList.toggle('is-highlighted', !!highlightedNodes[n.id]);
+      });
+      edgePaths.forEach(function (ep) {
+        var hit = !!highlightedNodes[ep.from] && !!highlightedNodes[ep.to];
+        ep.el.classList.toggle('is-highlighted', hit);
+        if (ep.labelEl)  ep.labelEl.classList.toggle('is-highlighted', hit);
+        if (ep.arrowEl)  ep.arrowEl.classList.toggle('is-highlighted', hit);
+      });
+
+      var connNodeIds = highlightedNodes;
 
       var connGroups = {};
       allGroupKeys.forEach(function (key) {
@@ -943,7 +977,8 @@
       nodes.forEach(function (n) { n.el.classList.remove('is-highlighted'); });
       edgePaths.forEach(function (ep) {
         ep.el.classList.remove('is-highlighted');
-        if (ep.labelEl) ep.labelEl.classList.remove('is-highlighted');
+        if (ep.labelEl)  ep.labelEl.classList.remove('is-highlighted');
+        if (ep.arrowEl)  ep.arrowEl.classList.remove('is-highlighted');
       });
       allGroupKeys.forEach(function (key) {
         var ge = groupElems[key];
@@ -954,13 +989,58 @@
     });
   });
 
-  // ── Centre the initial view ───────────────────────────────────────────────
-  if (fitted) {
-    VP.style.overflow = 'hidden';
-  } else {
-    VP.scrollLeft = (canvasW - vpW) / 2;
-    VP.scrollTop  = (canvasH - vpH) / 2;
+  // ── Pan / zoom ────────────────────────────────────────────────────────────
+  VP.style.overflow = 'hidden';
+
+  var currentZoom = Math.min(1, vpW / canvasW, vpH / canvasH);
+  var panX = (vpW - canvasW * currentZoom) / 2;
+  var panY = (vpH - canvasH * currentZoom) / 2;
+
+  function applyTransform() {
+    canvas.style.transform =
+      'translate(' + panX.toFixed(2) + 'px,' + panY.toFixed(2) + 'px)' +
+      ' scale(' + currentZoom.toFixed(4) + ')';
   }
+  applyTransform();
+
+  var isPanning = false, panSX = 0, panSY = 0;
+
+  VP.addEventListener('mousedown', function (e) {
+    if (e.target.closest && e.target.closest('.graph-node')) return;
+    isPanning = true;
+    panSX = e.clientX - panX;
+    panSY = e.clientY - panY;
+    VP.style.cursor = 'grabbing';
+    e.preventDefault();
+  });
+
+  document.addEventListener('mousemove', function (e) {
+    if (!isPanning) return;
+    panX = e.clientX - panSX;
+    panY = e.clientY - panSY;
+    applyTransform();
+  });
+
+  document.addEventListener('mouseup', function () {
+    if (isPanning) {
+      isPanning = false;
+      VP.style.cursor = '';
+    }
+  });
+
+  VP.addEventListener('wheel', function (e) {
+    e.preventDefault();
+    var factor = e.deltaY < 0 ? 1.1 : 1 / 1.1;
+    var newZoom = Math.max(0.1, Math.min(5, currentZoom * factor));
+    var rect = VP.getBoundingClientRect();
+    var mx = e.clientX - rect.left;
+    var my = e.clientY - rect.top;
+    panX = mx - (mx - panX) * (newZoom / currentZoom);
+    panY = my - (my - panY) * (newZoom / currentZoom);
+    currentZoom = newZoom;
+    applyTransform();
+  }, { passive: false });
+
   VP.classList.add('is-ready');
 
   // ── Labels toggle ─────────────────────────────────────────────────────────

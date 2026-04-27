@@ -1,0 +1,17 @@
+{{- $href := .Destination -}}
+{{- if and (strings.HasSuffix $href ".md") (not (strings.HasPrefix $href "http")) (not (strings.HasPrefix $href "//")) -}}
+  {{- $path := $href -}}
+  {{- if not (strings.HasPrefix $href "/") -}}
+    {{- if .Page.File -}}
+      {{- $pageDir := path.Dir .Page.File.Path -}}
+      {{- $path = path.Join $pageDir $href -}}
+    {{- end -}}
+  {{- else -}}
+    {{- $path = strings.TrimPrefix "/" $href -}}
+  {{- end -}}
+  {{- $path = $path | strings.TrimSuffix ".md" -}}
+  {{- with .Page.Site.GetPage $path -}}
+    {{- $href = .RelPermalink -}}
+  {{- end -}}
+{{- end -}}
+<a href="{{ $href }}"{{ with .Title }} title="{{ . }}"{{ end }}>{{ .Text | safeHTML }}</a>
