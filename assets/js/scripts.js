@@ -12,8 +12,8 @@
 
   // ── Constants ──────────────────────────────────────────────────────────────
   var HULL_PAD        = 48;
-  var GROUP_PADDING   = 24;  // min gap: a group's inner border → its children (nodes or child groups)
-  var GROUP_MARGIN    = 24;  // min gap: outer border of one sibling group → outer border of another
+  var GROUP_PADDING   = 20;  // min gap: a group's inner border → its children (nodes or child groups)
+  var GROUP_MARGIN    = 35;  // min gap: outer border of one sibling group → outer border of another
   var SECTION_MARGIN  = GROUP_MARGIN; // same spacing as sub-groups; balanced without forced vacuum
   var PAD             = 90;
 
@@ -192,8 +192,8 @@
 
   // ── Per-section compact layout ────────────────────────────────────────────
   var SECT_COL_GAP = 2 * GROUP_PADDING + GROUP_MARGIN;
-  var SECT_CELL_X  = 16;
-  var SECT_CELL_Y  = 18;
+  var SECT_CELL_X  = 22;
+  var SECT_CELL_Y  = 22;
 
   var subgroupOf = function (n) {
     return n.groups.length > 1 ? n.groups[n.groups.length - 1] : '';
@@ -292,8 +292,8 @@
     for (i = 0; i < N; i++) {
       for (j = i + 1; j < N; j++) {
         ni = nodes[i]; nj = nodes[j];
-        var ox = (ni.w + nj.w) / 2 + 12 - Math.abs(nj.x - ni.x);
-        var oy = (ni.h + nj.h) / 2 + 12 - Math.abs(nj.y - ni.y);
+        var ox = (ni.w + nj.w) / 2 + 20 - Math.abs(nj.x - ni.x);
+        var oy = (ni.h + nj.h) / 2 + 20 - Math.abs(nj.y - ni.y);
         if (ox > 0 && oy > 0) {
           anyOverlap = true;
           if (ox < oy) {
@@ -374,8 +374,8 @@
     for (i = 0; i < N; i++) {
       for (j = i + 1; j < N; j++) {
         ni = nodes[i]; nj = nodes[j];
-        var ox2 = (ni.w + nj.w) / 2 + 12 - Math.abs(nj.x - ni.x);
-        var oy2 = (ni.h + nj.h) / 2 + 12 - Math.abs(nj.y - ni.y);
+        var ox2 = (ni.w + nj.w) / 2 + 20 - Math.abs(nj.x - ni.x);
+        var oy2 = (ni.h + nj.h) / 2 + 20 - Math.abs(nj.y - ni.y);
         if (ox2 > 0 && oy2 > 0) {
           anyOvl2 = true;
           if (ox2 < oy2) {
@@ -434,7 +434,7 @@
         nmembers.forEach(function (n) { nmSet[n.id] = true; });
         var nb   = groupLayoutBBox(nkey);
         var nbCx = (nb[0] + nb[2]) / 2, nbCy = (nb[1] + nb[3]) / 2;
-        var nmGap = GROUP_MARGIN / 2; // min clearance between a node edge and a group border
+        var nmGap = GROUP_MARGIN; // min clearance between a node edge and a group border
         for (var nni = 0; nni < N; nni++) {
           var nn = nodes[nni];
           if (nmSet[nn.id]) continue;
@@ -458,8 +458,8 @@
       for (i = 0; i < N; i++) {
         for (j = i + 1; j < N; j++) {
           ni = nodes[i]; nj = nodes[j];
-          var ox3 = (ni.w + nj.w) / 2 + 12 - Math.abs(nj.x - ni.x);
-          var oy3 = (ni.h + nj.h) / 2 + 12 - Math.abs(nj.y - ni.y);
+          var ox3 = (ni.w + nj.w) / 2 + 20 - Math.abs(nj.x - ni.x);
+          var oy3 = (ni.h + nj.h) / 2 + 20 - Math.abs(nj.y - ni.y);
           if (ox3 > 0 && oy3 > 0) {
             anyOvl3 = true;
             if (ox3 < oy3) {
@@ -512,8 +512,8 @@
     for (i = 0; i < N; i++) {
       for (j = i + 1; j < N; j++) {
         ni = nodes[i]; nj = nodes[j];
-        var ox4 = (ni.w + nj.w) / 2 + 12 - Math.abs(nj.x - ni.x);
-        var oy4 = (ni.h + nj.h) / 2 + 12 - Math.abs(nj.y - ni.y);
+        var ox4 = (ni.w + nj.w) / 2 + 20 - Math.abs(nj.x - ni.x);
+        var oy4 = (ni.h + nj.h) / 2 + 20 - Math.abs(nj.y - ni.y);
         if (ox4 > 0 && oy4 > 0) {
           anyOvl4 = true;
           if (ox4 < oy4) {
