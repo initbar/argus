@@ -3,7 +3,7 @@ title: Apple
 description: An apple a day keeps the doctors away
 links:
     - to: [[group-b/banana, group-c/carrot, group-c/group-d/potato]]
-      label: apple
+      label: An apple a day keeps the doctors away
       type: arrow
 ---
 

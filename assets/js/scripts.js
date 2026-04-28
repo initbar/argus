@@ -893,12 +893,13 @@
       labelText.setAttribute('transform', 'translate(0,' + (-tbb.y - tbb.height / 2).toFixed(1) + ')');
 
       var bb = labelG.getBBox();
-      var lpx = 10, lpy = 6;
+      var lpx = 14, lpy = 6;
       var labelRect = document.createElementNS(ns, 'rect');
       labelRect.setAttribute('x',      (bb.x - lpx).toFixed(1));
       labelRect.setAttribute('y',      (bb.y - lpy).toFixed(1));
       labelRect.setAttribute('width',  (bb.width  + lpx * 2).toFixed(1));
       labelRect.setAttribute('height', (bb.height + lpy * 2).toFixed(1));
+      labelRect.setAttribute('rx',     '30');
       labelG.insertBefore(labelRect, labelText);
 
       labelEl = labelG;

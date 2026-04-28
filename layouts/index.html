@@ -1,21 +1,20 @@
 {{ define "main" }}
 <div class="home-wrapper">
-  <header class="site-header">
-    <div class="site-header-inner">
+  <div class="header-controls">
+    <header class="site-header">
       <h1 class="site-title">{{ .Site.Title }}</h1>
       {{ with .Site.Params.tagline }}
       <p class="site-tagline">{{ . }}</p>
       {{ end }}
-    </div>
-  </header>
-
-  <button class="labels-toggle" id="labels-toggle" aria-pressed="false" title="Toggle edge labels">
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-      <rect x="1" y="4" width="8" height="6" rx="1.5" stroke="currentColor" stroke-width="1.4"/>
-      <path d="M9 6.5L13 7L9 7.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
-    </svg>
-    Labels
-  </button>
+    </header>
+    <button class="labels-toggle" id="labels-toggle" aria-pressed="false" title="Toggle edge labels">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <rect x="1" y="4" width="8" height="6" rx="1.5" stroke="currentColor" stroke-width="1.4"/>
+        <path d="M9 6.5L13 7L9 7.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      Labels
+    </button>
+  </div>
 
   <div class="graph-viewport" id="graph-viewport">
     {{ $pages := sort .Site.RegularPages "Title" "asc" }}
