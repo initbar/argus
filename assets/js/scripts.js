@@ -37,17 +37,9 @@
   var idMap = {};
   nodes.forEach(function (n) { idMap[n.id] = n; });
 
-  // Deduplicate: A→B and B→A collapse to one edge; prefer the entry with a label
-  var edgePairMap = {};
-  rawLinks.filter(function (lk) {
+  var edges = rawLinks.filter(function (lk) {
     return idMap[lk.from] && idMap[lk.to];
-  }).forEach(function (lk) {
-    var key = [lk.from, lk.to].sort().join('|');
-    if (!edgePairMap[key] || (!edgePairMap[key].label && lk.label)) {
-      edgePairMap[key] = lk;
-    }
   });
-  var edges = Object.keys(edgePairMap).map(function (k) { return edgePairMap[k]; });
 
   // Filter chains to known nodes; keep only chains with 2+ valid members
   var validChains = rawChains.map(function (ch) {
@@ -60,17 +52,6 @@
     var src = ch[0];
     if (!chainsByNode[src]) chainsByNode[src] = [];
     chainsByNode[src].push(ci);
-  });
-
-  // Index: "a|b" (sorted) → { sourceId: true } — which chain sources own each consecutive pair
-  var chainEdgeSources = {};
-  validChains.forEach(function (ch) {
-    var src = ch[0];
-    for (var i = 0; i < ch.length - 1; i++) {
-      var key = [ch[i], ch[i + 1]].sort().join('|');
-      if (!chainEdgeSources[key]) chainEdgeSources[key] = {};
-      chainEdgeSources[key][src] = true;
-    }
   });
 
   var groupMap = {};
@@ -891,7 +872,7 @@
       arrowEl.setAttribute('d',     arrowD);
       arrowEl.setAttribute('fill',  'currentColor');
       arrowEl.setAttribute('class', 'edge-arrow-head');
-      svg.appendChild(arrowEl);
+      svgTop.appendChild(arrowEl);
     }
 
     var labelEl = null;
@@ -923,7 +904,7 @@
       labelEl = labelG;
     }
 
-    edgePaths.push({ from: lk.from, to: lk.to, el: path, labelEl: labelEl, arrowEl: arrowEl });
+    edgePaths.push({ from: lk.from, to: lk.to, chainSource: lk.chainSource || null, el: path, labelEl: labelEl, arrowEl: arrowEl });
   });
 
   // ── Hover highlighting ────────────────────────────────────────────────────
@@ -931,17 +912,14 @@
     hovN.el.addEventListener('mouseenter', function () {
       VP.classList.add('has-hover');
 
-      // Highlighted set: hovered node + targets of edges defined BY hovN
-      // (ep.from === hovN.id for direct edges; chain source for chain edges)
+      // Highlighted set: hovered node + targets of direct edges FROM hovN
+      // + all nodes in chains whose source is hovN
       var highlightedNodes = {};
       highlightedNodes[hovN.id] = true;
 
       edgePaths.forEach(function (ep) {
-        if (ep.from !== hovN.id) return;
-        var edgeKey = [ep.from, ep.to].sort().join('|');
-        if (!chainEdgeSources[edgeKey]) {
-          highlightedNodes[ep.to] = true;
-        }
+        if (ep.chainSource || ep.from !== hovN.id) return;
+        highlightedNodes[ep.to] = true;
       });
       (chainsByNode[hovN.id] || []).forEach(function (ci) {
         validChains[ci].forEach(function (nid) { highlightedNodes[nid] = true; });
@@ -951,14 +929,7 @@
         n.el.classList.toggle('is-highlighted', !!highlightedNodes[n.id]);
       });
       edgePaths.forEach(function (ep) {
-        var edgeKey = [ep.from, ep.to].sort().join('|');
-        var chainSrcs = chainEdgeSources[edgeKey];
-        var hit;
-        if (chainSrcs) {
-          hit = !!chainSrcs[hovN.id];
-        } else {
-          hit = ep.from === hovN.id;
-        }
+        var hit = ep.chainSource ? ep.chainSource === hovN.id : ep.from === hovN.id;
         ep.el.classList.toggle('is-highlighted', hit);
         if (ep.labelEl)  ep.labelEl.classList.toggle('is-highlighted', hit);
         if (ep.arrowEl)  ep.arrowEl.classList.toggle('is-highlighted', hit);

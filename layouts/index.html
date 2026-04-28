@@ -58,7 +58,7 @@
             {{ $chain := slice $from }}
             {{ $prev  := $from }}
             {{ range . }}
-              {{ $linkData  = $linkData  | append (dict "from" $prev "to" . "label" $label "type" $type) }}
+              {{ $linkData  = $linkData  | append (dict "from" $prev "to" . "label" $label "type" $type "chainSource" $from) }}
               {{ $chain     = $chain     | append . }}
               {{ $prev      = . }}
             {{ end }}

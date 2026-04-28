@@ -1,0 +1,10 @@
+{{ $src := .Destination }}
+{{ if and $src (not (strings.HasPrefix $src "http://")) (not (strings.HasPrefix $src "https://")) (not (strings.HasPrefix $src "/")) }}
+  {{ $dir := strings.TrimSuffix "/" .Page.File.Dir }}
+  {{ if $dir }}
+    {{ $src = printf "/%s/%s" $dir $src }}
+  {{ else }}
+    {{ $src = printf "/%s" $src }}
+  {{ end }}
+{{ end }}
+<img src="{{ $src | safeURL }}" alt="{{ .Text | safeHTML }}"{{ with .Title }} title="{{ . | safeHTML }}"{{ end }}>

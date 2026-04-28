@@ -2,6 +2,7 @@ baseURL = "http://localhost:4000/"
 
 title = "Argus"
 languageCode = "en-us"
+staticDir = ["static", "content"]
 
 [markup.goldmark.renderer]
   unsafe = true
