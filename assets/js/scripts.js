@@ -593,7 +593,7 @@
   var canvas = document.createElement('div');
   canvas.style.cssText =
     'position:absolute;left:0;top:0;width:' + canvasW + 'px;height:' + canvasH + 'px;' +
-    'transform-origin:0 0;will-change:transform;';
+    'transform-origin:0 0;';
 
   // ── SVG overlay (background — rendered behind nodes) ─────────────────────
   var ns  = 'http://www.w3.org/2000/svg';
@@ -909,8 +909,14 @@
   });
 
   // ── Hover highlighting ────────────────────────────────────────────────────
+  var hoveredId = null;
+  var clearRaf = null;
+
   nodes.forEach(function (hovN) {
     hovN.el.addEventListener('mouseenter', function () {
+      if (clearRaf !== null) { cancelAnimationFrame(clearRaf); clearRaf = null; }
+      if (hoveredId === hovN.id) return;
+      hoveredId = hovN.id;
       VP.classList.add('has-hover');
 
       // Highlighted set: hovered node + targets of direct edges FROM hovN
@@ -962,18 +968,23 @@
     });
 
     hovN.el.addEventListener('mouseleave', function () {
-      VP.classList.remove('has-hover');
-      nodes.forEach(function (n) { n.el.classList.remove('is-highlighted'); });
-      edgePaths.forEach(function (ep) {
-        ep.el.classList.remove('is-highlighted');
-        if (ep.labelEl)  ep.labelEl.classList.remove('is-highlighted');
-        if (ep.arrowEl)  ep.arrowEl.classList.remove('is-highlighted');
-      });
-      allGroupKeys.forEach(function (key) {
-        var ge = groupElems[key];
-        if (!ge) return;
-        ge.boundary.classList.remove('is-highlighted');
-        ge.label.classList.remove('is-highlighted');
+      if (hoveredId !== hovN.id) return;
+      clearRaf = requestAnimationFrame(function () {
+        clearRaf = null;
+        hoveredId = null;
+        VP.classList.remove('has-hover');
+        nodes.forEach(function (n) { n.el.classList.remove('is-highlighted'); });
+        edgePaths.forEach(function (ep) {
+          ep.el.classList.remove('is-highlighted');
+          if (ep.labelEl)  ep.labelEl.classList.remove('is-highlighted');
+          if (ep.arrowEl)  ep.arrowEl.classList.remove('is-highlighted');
+        });
+        allGroupKeys.forEach(function (key) {
+          var ge = groupElems[key];
+          if (!ge) return;
+          ge.boundary.classList.remove('is-highlighted');
+          ge.label.classList.remove('is-highlighted');
+        });
       });
     });
   });
@@ -987,7 +998,7 @@
 
   function applyTransform() {
     canvas.style.transform =
-      'translate(' + panX.toFixed(2) + 'px,' + panY.toFixed(2) + 'px)' +
+      'translate(' + Math.round(panX) + 'px,' + Math.round(panY) + 'px)' +
       ' scale(' + currentZoom.toFixed(4) + ')';
   }
   applyTransform();
