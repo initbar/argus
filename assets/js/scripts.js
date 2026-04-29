@@ -798,9 +798,10 @@
 
     var intra = a.section && b.section && a.section === b.section;
 
-    if (intra && bx > ax + 10) {
-      var sx = ax + a.w / 2, sy = ay;
-      var tx = bx - b.w / 2, ty = by;
+    var sx0 = ax + a.w / 2, tx0 = bx - b.w / 2;
+    if (intra && tx0 > sx0 + 5) {
+      var sx = sx0, sy = ay;
+      var tx = tx0, ty = by;
       var mx = (sx + tx) / 2;
       d = 'M'  + sx.toFixed(1) + ',' + sy.toFixed(1) +
           ' C' + mx.toFixed(1) + ',' + sy.toFixed(1) +
