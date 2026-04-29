@@ -1,4 +1,10 @@
 {{- $href := .Destination -}}
+{{- $fragment := "" -}}
+{{- if strings.Contains $href "#" -}}
+  {{- $parts := split $href "#" -}}
+  {{- $href = index $parts 0 -}}
+  {{- $fragment = printf "#%s" (index $parts 1) -}}
+{{- end -}}
 {{- if and (strings.HasSuffix $href ".md") (not (strings.HasPrefix $href "http")) (not (strings.HasPrefix $href "//")) -}}
   {{- $path := $href -}}
   {{- if not (strings.HasPrefix $href "/") -}}
@@ -14,4 +20,4 @@
     {{- $href = .RelPermalink -}}
   {{- end -}}
 {{- end -}}
-<a href="{{ $href }}"{{ with .Title }} title="{{ . }}"{{ end }}>{{ .Text | safeHTML }}</a>
+<a href="{{ $href }}{{ $fragment }}"{{ with .Title }} title="{{ . }}"{{ end }}>{{ .Text | safeHTML }}</a>
