@@ -999,7 +999,7 @@
     clearTimer = setTimeout(function () {
       clearTimer = null;
       clearHoverState();
-    }, 0);
+    }, 30);
   });
 
   // ── Pan / zoom ────────────────────────────────────────────────────────────

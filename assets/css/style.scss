@@ -294,13 +294,15 @@ body {
   font-weight: 500;
   line-height: 1.3;
   color: var(--text);
+  pointer-events: none;
 }
 
 .node-description {
   font-size: var(--text-base);
   font-weight: 500;
   line-height: 1.3;
-  color: var(--subtle)
+  color: var(--subtle);
+  pointer-events: none;
 }
 
 .empty-state {
