@@ -911,83 +911,95 @@
 
   // ── Hover highlighting ────────────────────────────────────────────────────
   var hoveredId = null;
-  var clearRaf = null;
+  var clearTimer = null;
 
-  nodes.forEach(function (hovN) {
-    hovN.el.addEventListener('mouseenter', function () {
-      if (clearRaf !== null) { cancelAnimationFrame(clearRaf); clearRaf = null; }
-      if (hoveredId === hovN.id) return;
-      hoveredId = hovN.id;
-      VP.classList.add('has-hover');
+  function applyNodeHover(hovN) {
+    if (clearTimer !== null) { clearTimeout(clearTimer); clearTimer = null; }
+    if (hoveredId === hovN.id) return;
+    hoveredId = hovN.id;
+    VP.classList.add('has-hover');
 
-      // Highlighted set: hovered node + targets of direct edges FROM hovN
-      // + all nodes in chains whose source is hovN
-      var highlightedNodes = {};
-      highlightedNodes[hovN.id] = true;
+    // Highlighted set: hovered node + targets of direct edges FROM hovN
+    // + all nodes in chains whose source is hovN
+    var highlightedNodes = {};
+    highlightedNodes[hovN.id] = true;
 
-      edgePaths.forEach(function (ep) {
-        if (ep.chainSource || ep.from !== hovN.id) return;
-        highlightedNodes[ep.to] = true;
-      });
-      (chainsByNode[hovN.id] || []).forEach(function (ci) {
-        validChains[ci].forEach(function (nid) { highlightedNodes[nid] = true; });
-      });
-
-      nodes.forEach(function (n) {
-        n.el.classList.toggle('is-highlighted', !!highlightedNodes[n.id]);
-      });
-      edgePaths.forEach(function (ep) {
-        var hit = ep.chainSource ? ep.chainSource === hovN.id : ep.from === hovN.id;
-        ep.el.classList.toggle('is-highlighted', hit);
-        if (ep.labelEl)  ep.labelEl.classList.toggle('is-highlighted', hit);
-        if (ep.arrowEl)  ep.arrowEl.classList.toggle('is-highlighted', hit);
-      });
-
-      var connNodeIds = highlightedNodes;
-
-      var connGroups = {};
-      allGroupKeys.forEach(function (key) {
-        var members = groupMap[key];
-        for (var mi = 0; mi < members.length; mi++) {
-          if (connNodeIds[members[mi].id]) { connGroups[key] = true; break; }
-        }
-      });
-      allGroupKeys.forEach(function (key) {
-        if (!connGroups[key]) return;
-        var parts = key.split('/');
-        for (var pi = 1; pi < parts.length; pi++) {
-          connGroups[parts.slice(0, pi).join('/')] = true;
-        }
-      });
-
-      allGroupKeys.forEach(function (key) {
-        var ge = groupElems[key];
-        if (!ge) return;
-        ge.boundary.classList.toggle('is-highlighted', !!connGroups[key]);
-        ge.label.classList.toggle('is-highlighted', !!connGroups[key]);
-      });
+    edgePaths.forEach(function (ep) {
+      if (ep.chainSource || ep.from !== hovN.id) return;
+      highlightedNodes[ep.to] = true;
+    });
+    (chainsByNode[hovN.id] || []).forEach(function (ci) {
+      validChains[ci].forEach(function (nid) { highlightedNodes[nid] = true; });
     });
 
-    hovN.el.addEventListener('mouseleave', function () {
-      if (hoveredId !== hovN.id) return;
-      clearRaf = requestAnimationFrame(function () {
-        clearRaf = null;
-        hoveredId = null;
-        VP.classList.remove('has-hover');
-        nodes.forEach(function (n) { n.el.classList.remove('is-highlighted'); });
-        edgePaths.forEach(function (ep) {
-          ep.el.classList.remove('is-highlighted');
-          if (ep.labelEl)  ep.labelEl.classList.remove('is-highlighted');
-          if (ep.arrowEl)  ep.arrowEl.classList.remove('is-highlighted');
-        });
-        allGroupKeys.forEach(function (key) {
-          var ge = groupElems[key];
-          if (!ge) return;
-          ge.boundary.classList.remove('is-highlighted');
-          ge.label.classList.remove('is-highlighted');
-        });
-      });
+    nodes.forEach(function (n) {
+      n.el.classList.toggle('is-highlighted', !!highlightedNodes[n.id]);
     });
+    edgePaths.forEach(function (ep) {
+      var hit = ep.chainSource ? ep.chainSource === hovN.id : ep.from === hovN.id;
+      ep.el.classList.toggle('is-highlighted', hit);
+      if (ep.labelEl)  ep.labelEl.classList.toggle('is-highlighted', hit);
+      if (ep.arrowEl)  ep.arrowEl.classList.toggle('is-highlighted', hit);
+    });
+
+    var connGroups = {};
+    allGroupKeys.forEach(function (key) {
+      var members = groupMap[key];
+      for (var mi = 0; mi < members.length; mi++) {
+        if (highlightedNodes[members[mi].id]) { connGroups[key] = true; break; }
+      }
+    });
+    allGroupKeys.forEach(function (key) {
+      if (!connGroups[key]) return;
+      var parts = key.split('/');
+      for (var pi = 1; pi < parts.length; pi++) {
+        connGroups[parts.slice(0, pi).join('/')] = true;
+      }
+    });
+
+    allGroupKeys.forEach(function (key) {
+      var ge = groupElems[key];
+      if (!ge) return;
+      ge.boundary.classList.toggle('is-highlighted', !!connGroups[key]);
+      ge.label.classList.toggle('is-highlighted', !!connGroups[key]);
+    });
+  }
+
+  function clearHoverState() {
+    hoveredId = null;
+    VP.classList.remove('has-hover');
+    nodes.forEach(function (n) { n.el.classList.remove('is-highlighted'); });
+    edgePaths.forEach(function (ep) {
+      ep.el.classList.remove('is-highlighted');
+      if (ep.labelEl)  ep.labelEl.classList.remove('is-highlighted');
+      if (ep.arrowEl)  ep.arrowEl.classList.remove('is-highlighted');
+    });
+    allGroupKeys.forEach(function (key) {
+      var ge = groupElems[key];
+      if (!ge) return;
+      ge.boundary.classList.remove('is-highlighted');
+      ge.label.classList.remove('is-highlighted');
+    });
+  }
+
+  // Use VP-level mouseover/mouseout so node-to-node transitions never schedule
+  // a clear — relatedTarget on mouseout identifies the destination element,
+  // letting us skip the clear entirely when moving directly between nodes.
+  VP.addEventListener('mouseover', function (e) {
+    var nodeEl = e.target.closest ? e.target.closest('.graph-node') : null;
+    if (!nodeEl) return;
+    var hovN = idMap[nodeEl.id.replace('node-', '')];
+    if (hovN) applyNodeHover(hovN);
+  });
+
+  VP.addEventListener('mouseout', function (e) {
+    var rTarget = e.relatedTarget;
+    if (rTarget && rTarget.closest && rTarget.closest('.graph-node')) return;
+    if (clearTimer !== null) { clearTimeout(clearTimer); clearTimer = null; }
+    clearTimer = setTimeout(function () {
+      clearTimer = null;
+      clearHoverState();
+    }, 0);
   });
 
   // ── Pan / zoom ────────────────────────────────────────────────────────────

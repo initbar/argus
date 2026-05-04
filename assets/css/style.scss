@@ -170,6 +170,10 @@ body {
   opacity: 0.1;
 }
 
+.graph-viewport.has-hover .graph-node.is-highlighted {
+  opacity: 1;
+}
+
 .graph-viewport svg .edge-link {
   stroke: currentColor;
   stroke-width: 1.5;
