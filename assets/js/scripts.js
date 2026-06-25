@@ -73,7 +73,7 @@
     labelRadius: 30,
 
     // Interaction
-    hoverClearMs: 30,
+    hoverClearMs: 80, // dwell over empty space before the highlight clears
     zoomMin: 0.1,
     zoomMax: 5,
     zoomStep: 1.1
@@ -1071,24 +1071,35 @@
 
     bind() {
       var self = this;
-      // VP-level mouseover/mouseout: node→node transitions never schedule a
-      // clear, because relatedTarget on mouseout reveals the destination node.
-      this.VP.addEventListener('mouseover', function (e) {
-        var nodeEl = e.target.closest ? e.target.closest('.graph-node') : null;
-        if (!nodeEl) return;
-        var node = self.model.idMap[nodeEl.id.replace('node-', '')];
-        if (node) self._applyNodeHover(node);
+
+      // Hover is driven by pointer *position*, not enter/leave bookkeeping.
+      // Every pointermove re-reads the real element under the cursor, so a late
+      // or janky frame can never leave a node falsely "cleared" — the next move
+      // corrects it. (Enter/leave + a blind timer raced under load on large,
+      // dense graphs, producing the dim→bright→dim flicker.) A clear only fires
+      // after the pointer genuinely dwells over empty space for `clearMs`.
+      this.VP.addEventListener('pointermove', function (e) {
+        var nodeEl = e.target && e.target.closest ? e.target.closest('.graph-node') : null;
+        var node = nodeEl ? self.model.idMap[nodeEl.id.replace('node-', '')] : null;
+        if (node) self._applyNodeHover(node); // cancels any pending clear
+        else self._scheduleClear();
       });
 
-      this.VP.addEventListener('mouseout', function (e) {
-        var related = e.relatedTarget;
-        if (related && related.closest && related.closest('.graph-node')) return;
-        if (self.clearTimer !== null) { clearTimeout(self.clearTimer); }
-        self.clearTimer = setTimeout(function () {
-          self.clearTimer = null;
-          self._clear();
-        }, self.clearMs);
+      // Leaving the viewport entirely clears immediately.
+      this.VP.addEventListener('pointerleave', function () {
+        if (self.clearTimer !== null) { clearTimeout(self.clearTimer); self.clearTimer = null; }
+        if (self.hoveredId !== null) self._clear();
       });
+    }
+
+    /** Clear after a short dwell over empty space; node hovers cancel it. */
+    _scheduleClear() {
+      if (this.hoveredId === null || this.clearTimer !== null) return;
+      var self = this;
+      this.clearTimer = setTimeout(function () {
+        self.clearTimer = null;
+        self._clear();
+      }, this.clearMs);
     }
 
     /** @param {GraphNode} node */
