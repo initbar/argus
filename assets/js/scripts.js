@@ -260,6 +260,26 @@
         var parent = k.indexOf('/') === -1 ? '' : k.substring(0, k.lastIndexOf('/'));
         (this.childKeysByParent[parent] || (this.childKeysByParent[parent] = [])).push(k);
       }, this);
+
+      // Precompute position-independent membership lookups so the layout's hot
+      // loops don't rebuild them every call:
+      //   ownNodes[key]     – members drawn directly by `key` (not by a child).
+      //   memberIdSet[key]  – id → true for every member of `key`.
+      /** @type {Record<string, GraphNode[]>} */
+      this.ownNodes = {};
+      /** @type {Record<string, Record<string, boolean>>} */
+      this.memberIdSet = {};
+      this.allGroupKeys.forEach(function (key) {
+        var inChild = {};
+        this.directChildren(key).forEach(function (ck) {
+          this.groupMap[ck].forEach(function (n) { inChild[n.id] = true; });
+        }, this);
+
+        var idSet = {};
+        this.groupMap[key].forEach(function (n) { idSet[n.id] = true; });
+        this.memberIdSet[key] = idSet;
+        this.ownNodes[key] = this.groupMap[key].filter(function (n) { return !inChild[n.id]; });
+      }, this);
     }
 
     /** @returns {string[]} direct child group keys of `key`. */
@@ -283,16 +303,9 @@
      */
     groupBBox(key, getX, getY) {
       var pad = this.config.groupPadding;
-      var children = this.directChildren(key);
-
-      var inChild = {};
-      children.forEach(function (ck) {
-        this.groupMap[ck].forEach(function (n) { inChild[n.id] = true; });
-      }, this);
-
       var x1 = Infinity, y1 = Infinity, x2 = -Infinity, y2 = -Infinity;
 
-      children.forEach(function (ck) {
+      this.directChildren(key).forEach(function (ck) {
         var cb = this.groupBBox(ck, getX, getY);
         x1 = Math.min(x1, cb[0] - pad);
         y1 = Math.min(y1, cb[1] - pad);
@@ -300,8 +313,7 @@
         y2 = Math.max(y2, cb[3] + pad);
       }, this);
 
-      this.groupMap[key].forEach(function (n) {
-        if (inChild[n.id]) return;
+      this.ownNodes[key].forEach(function (n) {
         var nx = getX(n), ny = getY(n);
         x1 = Math.min(x1, nx - n.w / 2 - pad);
         y1 = Math.min(y1, ny - n.h / 2 - pad);
@@ -441,23 +453,30 @@
       var range = this.config.groupRepelRange;
       var sections = model.sections;
 
-      var radiusOf = function (members) {
+      // Centroids and radii are constant across this pass (positions only move
+      // in _integrate), so compute each section's once rather than per pair.
+      var stats = sections.map(function (sec) {
+        var members = model.sectionMap[sec];
+        var c = centroid(members);
         var avgArea = members.reduce(function (s, n) { return s + n.w * n.h; }, 0) / members.length;
-        return hullPad + Math.sqrt(members.length * avgArea) / 2;
-      };
+        return {
+          members: members,
+          cx: c.x,
+          cy: c.y,
+          radius: hullPad + Math.sqrt(members.length * avgArea) / 2
+        };
+      });
 
-      for (var i = 0; i < sections.length; i++) {
-        for (var j = i + 1; j < sections.length; j++) {
-          var A = model.sectionMap[sections[i]];
-          var B = model.sectionMap[sections[j]];
-          var ca = centroid(A), cb = centroid(B);
-          var dx = cb.x - ca.x, dy = cb.y - ca.y;
+      for (var i = 0; i < stats.length; i++) {
+        for (var j = i + 1; j < stats.length; j++) {
+          var A = stats[i], B = stats[j];
+          var dx = B.cx - A.cx, dy = B.cy - A.cy;
           var dist = Math.sqrt(dx * dx + dy * dy) || 1;
 
-          if (dist < (radiusOf(A) + radiusOf(B)) * range) {
+          if (dist < (A.radius + B.radius) * range) {
             var f = repel / (dist * dist);
-            A.forEach(function (n) { n.fx -= f * dx / dist / A.length; n.fy -= f * dy / dist / A.length; });
-            B.forEach(function (n) { n.fx += f * dx / dist / B.length; n.fy += f * dy / dist / B.length; });
+            A.members.forEach(function (n) { n.fx -= f * dx / dist / A.members.length; n.fy -= f * dy / dist / A.members.length; });
+            B.members.forEach(function (n) { n.fx += f * dx / dist / B.members.length; n.fy += f * dy / dist / B.members.length; });
           }
         }
       }
@@ -675,8 +694,7 @@
         var any = false;
         for (var ki = 0; ki < model.nestedKeys.length; ki++) {
           var key = model.nestedKeys[ki];
-          var memberSet = {};
-          model.groupMap[key].forEach(function (n) { memberSet[n.id] = true; });
+          var memberSet = model.memberIdSet[key];
 
           var bb = model.groupBBox(key, layoutX, layoutY);
           var bCx = (bb[0] + bb[2]) / 2, bCy = (bb[1] + bb[3]) / 2;
