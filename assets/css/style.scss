@@ -245,6 +245,36 @@ body {
   opacity: 1;
 }
 
+// Transition-order badges (shown on hover over a chain source)
+.graph-viewport svg .chain-badge {
+  circle {
+    fill: #000;
+    stroke: #fff;
+    stroke-width: 1.5;
+  }
+
+  text {
+    fill: #fff;
+    font-family: var(--font);
+    font-size: 13px;
+    font-weight: 700;
+  }
+}
+
+// Pop-in effect; the inner group scales about its own centre so the badge's
+// positioning transform on the parent group is preserved.
+.graph-viewport svg .chain-badge-inner {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: chain-badge-pop 0.2s ease-out both;
+}
+
+@keyframes chain-badge-pop {
+  from { opacity: 0; transform: scale(0.2); }
+  60%  { opacity: 1; transform: scale(1.15); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
 // Labels toggle button
 
 .labels-toggle {

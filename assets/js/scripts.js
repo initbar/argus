@@ -71,6 +71,7 @@
     labelPadX: 14,
     labelPadY: 6,
     labelRadius: 30,
+    badgeRadius: 12, // numbered transition-order badge shown on hover
 
     // Interaction
     hoverClearMs: 80, // dwell over empty space before the highlight clears
@@ -800,7 +801,10 @@
       this.edgePaths = [];
     }
 
-    /** @returns {{canvas: HTMLElement, groupElems: object, edgePaths: EdgeRef[]}} */
+    /**
+     * @returns {{canvas: HTMLElement, groupElems: object, edgePaths: EdgeRef[],
+     *            chainBadges: SVGGElement}}
+     */
     render() {
       this.VP.style.position = 'relative';
 
@@ -828,7 +832,17 @@
       this._drawGroups();
       this._drawEdges();
 
-      return { canvas: this.canvas, groupElems: this.groupElems, edgePaths: this.edgePaths };
+      // Numbered transition-order badges live above edges/labels; populated
+      // on hover by the HoverController.
+      this.chainBadges = svgEl('g', { 'class': 'chain-badges' });
+      this.svgTop.appendChild(this.chainBadges);
+
+      return {
+        canvas: this.canvas,
+        groupElems: this.groupElems,
+        edgePaths: this.edgePaths,
+        chainBadges: this.chainBadges
+      };
     }
 
     /** A full-canvas, non-interactive, overflow-visible SVG layer. */
@@ -1075,14 +1089,17 @@
      * @param {GraphModel} model
      * @param {Record<string, {boundary: SVGElement, label: SVGElement}>} groupElems
      * @param {EdgeRef[]} edgePaths
-     * @param {number} clearMs
+     * @param {SVGGElement} chainBadges  container for transition-order badges
+     * @param {typeof CONFIG} config
      */
-    constructor(viewport, model, groupElems, edgePaths, clearMs) {
+    constructor(viewport, model, groupElems, edgePaths, chainBadges, config) {
       this.VP = viewport;
       this.model = model;
       this.groupElems = groupElems;
       this.edgePaths = edgePaths;
-      this.clearMs = clearMs;
+      this.chainBadges = chainBadges;
+      this.config = config;
+      this.clearMs = config.hoverClearMs;
       this.hoveredId = null;
       this.clearTimer = null;
     }
@@ -1175,9 +1192,64 @@
         ge.boundary.classList.toggle('is-highlighted', !!connected[key]);
         ge.label.classList.toggle('is-highlighted', !!connected[key]);
       });
+
+      this._renderChainBadges(node);
+    }
+
+    /**
+     * Number the steps of every transition chain the hovered node sources, so
+     * the visiting order (1, 2, 3, …) is visible. Rebuilt only when the hovered
+     * node changes (caller early-returns otherwise).
+     * @param {GraphNode} node
+     */
+    _renderChainBadges(node) {
+      var badges = this.chainBadges;
+      while (badges.firstChild) badges.removeChild(badges.firstChild);
+
+      var model = this.model;
+      (model.chainsByNode[node.id] || []).forEach(function (ci) {
+        var chain = model.validChains[ci];
+        // chain[0] is the source; number the destinations after it.
+        for (var step = 1; step < chain.length; step++) {
+          var target = model.idMap[chain[step]];
+          if (target) this._appendBadge(target, step);
+        }
+      }, this);
+    }
+
+    /** Append one numbered badge at the top-right corner of a node. */
+    _appendBadge(node, order) {
+      var bx = node.cx + node.w / 2;
+      var by = node.cy - node.h / 2;
+
+      var group = svgEl('g', {
+        'class': 'chain-badge',
+        transform: 'translate(' + bx.toFixed(1) + ',' + by.toFixed(1) + ')'
+      });
+      // Inner group carries the pop-in animation so it doesn't clobber the
+      // outer positioning transform.
+      var inner = svgEl('g', { 'class': 'chain-badge-inner' });
+      inner.appendChild(svgEl('circle', { r: this.config.badgeRadius, cx: 0, cy: 0 }));
+
+      var text = svgEl('text', {
+        x: 0, y: 0,
+        'text-anchor': 'middle',
+        'dominant-baseline': 'central'
+      });
+      text.textContent = String(order);
+      inner.appendChild(text);
+
+      group.appendChild(inner);
+      this.chainBadges.appendChild(group);
+    }
+
+    _clearBadges() {
+      var badges = this.chainBadges;
+      while (badges.firstChild) badges.removeChild(badges.firstChild);
     }
 
     _clear() {
+      this._clearBadges();
       this.hoveredId = null;
       this.VP.classList.remove('has-hover');
       this.model.nodes.forEach(function (n) { n.el.classList.remove('is-highlighted'); });
@@ -1313,7 +1385,7 @@
 
       var rendered = new GraphRenderer(model, CONFIG, this.VP, size.canvasW, size.canvasH).render();
 
-      new HoverController(this.VP, model, rendered.groupElems, rendered.edgePaths, CONFIG.hoverClearMs).bind();
+      new HoverController(this.VP, model, rendered.groupElems, rendered.edgePaths, rendered.chainBadges, CONFIG).bind();
       new PanZoomController(this.VP, rendered.canvas, CONFIG, vpW, vpH, size.canvasW, size.canvasH).bind();
 
       this.VP.classList.add('is-ready');
