@@ -77,7 +77,12 @@
     hoverClearMs: 80, // dwell over empty space before the highlight clears
     zoomMin: 0.1,
     zoomMax: 5,
-    zoomStep: 1.1
+    zoomStep: 1.1,
+
+    // Legibility floor for the initial fit. Below roughly this scale the node
+    // titles and group labels stop being readable, so on a viewport too small
+    // to show the whole graph we keep the text legible and let the user pan.
+    fitMinZoom: 0.6
   });
 
   var SVG_NS = 'http://www.w3.org/2000/svg';
@@ -358,7 +363,7 @@
       this._separateSubgroups();
       this._separateSections(this.config.sectionSepIters);
       this._resolveNodeOverlaps(this.config.overlapFinal);
-      this._redistributeSections();
+      this._packSections();
       return this._deriveCanvasCoords();
     }
 
@@ -717,12 +722,17 @@
     }
 
     /**
-     * Lay the top-level sections left-to-right by current x-centre with exactly
-     * sectionMargin between bbox edges, then vertically centre the whole graph.
+     * Lay the top-level sections into a grid, centred on the origin, with
+     * exactly sectionMargin between bbox edges.
+     *
+     * The column count is chosen so the graph's aspect ratio matches the
+     * viewport's rather than always forming one wide row. A wide row on a
+     * narrow screen forces a tiny fit-zoom, which is what shrinks the labels
+     * into illegibility; matching the aspect keeps the fitted scale as large
+     * as the viewport allows. Sections keep their left-to-right ordering.
      */
-    _redistributeSections() {
+    _packSections() {
       var model = this.model, margin = this.config.sectionMargin;
-      if (model.sections.length < 2) return;
 
       var items = model.sections
         .map(function (sec) { return { key: sec, bb: model.groupBBox(sec, layoutX, layoutY) }; })
@@ -730,32 +740,75 @@
         .sort(function (a, b) {
           return ((a.bb[0] + a.bb[2]) / 2) - ((b.bb[0] + b.bb[2]) / 2);
         });
-      if (items.length < 2) return;
+      if (!items.length) return;
 
-      var totalW = items.reduce(function (s, item) {
-        return s + (item.bb[2] - item.bb[0]);
-      }, 0) + (items.length - 1) * margin;
+      var cols = items.length > 1 ? this._bestColumnCount(items, margin) : 1;
+      var grid = this._measureSectionGrid(items, cols, margin);
 
-      var curX = -totalW / 2;
-      items.forEach(function (item) {
-        var bw = item.bb[2] - item.bb[0];
-        var oldCx = (item.bb[0] + item.bb[2]) / 2;
-        var dx = curX + bw / 2 - oldCx;
-        model.sectionMap[item.key].forEach(function (n) { n.x += dx; });
-        curX += bw + margin;
+      // Centre each section inside its grid cell, and the grid on the origin.
+      items.forEach(function (item, i) {
+        var row = Math.floor(i / cols), col = i % cols;
+        var cellCx = -grid.totalW / 2 + grid.colStarts[col] + grid.colWidths[col] / 2;
+        var cellCy = -grid.totalH / 2 + grid.rowStarts[row] + grid.rowHeights[row] / 2;
+        var dx = cellCx - (item.bb[0] + item.bb[2]) / 2;
+        var dy = cellCy - (item.bb[1] + item.bb[3]) / 2;
+        model.sectionMap[item.key].forEach(function (n) { n.x += dx; n.y += dy; });
+      });
+    }
+
+    /**
+     * Column/row extents for `items` laid row-major into `cols` columns.
+     * @param {{bb: [number, number, number, number]}[]} items
+     */
+    _measureSectionGrid(items, cols, margin) {
+      var rows = Math.ceil(items.length / cols);
+      var colWidths = new Array(cols).fill(0);
+      var rowHeights = new Array(rows).fill(0);
+
+      items.forEach(function (item, i) {
+        var row = Math.floor(i / cols), col = i % cols;
+        colWidths[col] = Math.max(colWidths[col], item.bb[2] - item.bb[0]);
+        rowHeights[row] = Math.max(rowHeights[row], item.bb[3] - item.bb[1]);
       });
 
-      var avgCy = items.reduce(function (s, item) {
-        return s + (item.bb[1] + item.bb[3]) / 2;
-      }, 0) / items.length;
-      model.nodes.forEach(function (n) { n.y -= avgCy; });
+      var colStarts = [0], rowStarts = [0];
+      for (var c = 1; c < cols; c++) colStarts.push(colStarts[c - 1] + colWidths[c - 1] + margin);
+      for (var r = 1; r < rows; r++) rowStarts.push(rowStarts[r - 1] + rowHeights[r - 1] + margin);
+
+      return {
+        colWidths: colWidths,
+        rowHeights: rowHeights,
+        colStarts: colStarts,
+        rowStarts: rowStarts,
+        totalW: colStarts[cols - 1] + colWidths[cols - 1],
+        totalH: rowStarts[rows - 1] + rowHeights[rows - 1]
+      };
+    }
+
+    /**
+     * The column count whose resulting grid best matches the viewport's aspect
+     * ratio. Compared in log space so "twice as wide as it should be" and
+     * "twice as tall" score equally.
+     */
+    _bestColumnCount(items, margin) {
+      var target = Math.log(this.VW / this.VH);
+      var best = 1, bestScore = Infinity;
+      for (var cols = 1; cols <= items.length; cols++) {
+        var grid = this._measureSectionGrid(items, cols, margin);
+        var score = Math.abs(Math.log(grid.totalW / grid.totalH) - target);
+        if (score < bestScore) { bestScore = score; best = cols; }
+      }
+      return best;
     }
 
     // Canvas coordinates
 
     /** Translate layout coords into padded canvas coords; return canvas size. */
     _deriveCanvasCoords() {
-      var pad = this.config.canvasPad;
+      // Scale the breathing room to the viewport: a fixed 90px border is a
+      // rounding error on a desktop but a third of a phone screen, and every
+      // padded pixel is one the fit-zoom has to shrink away.
+      var pad = Math.max(24, Math.min(this.config.canvasPad, Math.min(this.VW, this.VH) * 0.12));
       var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
       this.model.nodes.forEach(function (n) {
         minX = Math.min(minX, n.x - n.w / 2);
@@ -1285,7 +1338,13 @@
       this.VP = viewport;
       this.canvas = canvas;
       this.config = config;
-      this.zoom = Math.min(1, vpW / canvasW, vpH / canvasH);
+
+      // Never zoom in past 1:1, and never shrink past the legibility floor —
+      // a graph too big for the viewport opens centred and readable, and is
+      // reached by panning rather than by squinting.
+      var fit = Math.min(vpW / canvasW, vpH / canvasH);
+      this.zoom = Math.max(Math.min(fit, 1), config.fitMinZoom);
+
       this.panX = (vpW - canvasW * this.zoom) / 2;
       this.panY = (vpH - canvasH * this.zoom) / 2;
       this.isPanning = false;

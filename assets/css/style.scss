@@ -82,6 +82,7 @@ body {
 .home-wrapper {
   position: relative;
   height: 100vh;
+  height: 100dvh; // exclude mobile browser chrome, which 100vh counts as visible
   display: flex;
   flex-direction: column;
   overflow: hidden;
